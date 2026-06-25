@@ -1,0 +1,558 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import useAuthStore from '../../src/store/useAuthStore';
+import { UploadCloud, CheckCircle2, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+// --- Step Components (Moved outside to prevent React from unmounting and losing focus) --- //
+
+const Step0 = ({ isUploading, file, referralCode, setReferralCode, handleFileUpload }: any) => (
+  <div className="flex w-full max-w-[1200px] mx-auto bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-[#333] shadow-sm overflow-hidden min-h-[600px]">
+    {/* Left Sidebar */}
+    <div className="w-1/3 bg-slate-50 dark:bg-[#121212] p-10 border-r border-slate-200 dark:border-[#333]">
+      <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-6 uppercase">Getting Started</h3>
+      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-8">
+        Upload your resume and we'll extract your profile, draft a cover letter, and queue jobs for you — usually in under a minute.
+      </p>
+      <ul className="space-y-6">
+        <li className="flex items-start">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0" />
+          <span className="text-sm text-slate-600 dark:text-slate-400">AI pulls your skills, roles, and dates straight from the PDF.</span>
+        </li>
+        <li className="flex items-start">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0" />
+          <span className="text-sm text-slate-600 dark:text-slate-400">A first-pass cover letter is written from your experience.</span>
+        </li>
+        <li className="flex items-start">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0" />
+          <span className="text-sm text-slate-600 dark:text-slate-400">Personalized matches ready by the time you finish setup.</span>
+        </li>
+      </ul>
+    </div>
+
+    {/* Right Content */}
+    <div className="w-2/3 p-12">
+      <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-4 uppercase">Resume</h3>
+      <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-4">Upload your resume.</h1>
+      <p className="text-slate-500 mb-10 text-sm">PDF only, under 10MB. We parse it, draft a cover letter, and have matches waiting by the time you finish setup.</p>
+
+      <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-200 dark:border-[#333] border-dashed rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-[#222] transition-colors mb-10">
+        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+          {isUploading ? (
+            <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-3" />
+          ) : (
+            <UploadCloud className="w-10 h-10 text-slate-400 mb-3" />
+          )}
+          <p className="mb-2 text-sm text-slate-700 dark:text-slate-300">
+            <span className="font-semibold text-blue-600 dark:text-blue-400">Drop your PDF here, or browse</span>
+          </p>
+          <p className="text-xs text-slate-500">Resume · PDF only · up to 10MB</p>
+        </div>
+        <input 
+          type="file" 
+          className="hidden" 
+          accept="application/pdf"
+          onChange={(e) => e.target.files && handleFileUpload(e.target.files[0])}
+          disabled={isUploading}
+        />
+      </label>
+
+      <div className="mb-8">
+        <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-2">Referral Code · optional</label>
+        <input 
+          type="text" 
+          placeholder="e.g. JOHN1234" 
+          className="w-full bg-transparent border-b border-slate-200 dark:border-[#333] focus:border-blue-500 py-2 outline-none text-slate-900 dark:text-white"
+          value={referralCode}
+          onChange={(e) => setReferralCode(e.target.value)}
+        />
+      </div>
+
+      <button 
+        onClick={() => file && handleFileUpload(file)}
+        disabled={!file || isUploading}
+        className="bg-[#111827] dark:bg-white text-white dark:text-[#111827] px-6 py-3 rounded-lg font-medium flex items-center disabled:opacity-50"
+      >
+        {isUploading ? 'Uploading...' : 'Continue'} 
+        <ArrowRight className="w-4 h-4 ml-2" />
+      </button>
+    </div>
+  </div>
+);
+
+const MasterLayout = ({ children, stepNumber, totalSteps, step, setStep, isResumeParsed, handleFinalSubmit }: any) => (
+  <div className="flex flex-col w-full max-w-[1200px] mx-auto bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-[#333] shadow-sm overflow-hidden min-h-[700px]">
+    {/* Top Bar */}
+    <div className="px-8 py-6 border-b border-slate-200 dark:border-[#333]">
+      <div className="flex justify-between items-center mb-4">
+        <span className="text-sm font-medium text-slate-500">Step {stepNumber} of {totalSteps}</span>
+        {stepNumber > 1 && (
+          <button onClick={() => setStep(step - 1)} className="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center">
+            ← Back
+          </button>
+        )}
+      </div>
+      <div className="w-full bg-slate-100 dark:bg-[#222] h-1 rounded-full overflow-hidden">
+        <div className="bg-slate-900 dark:bg-white h-full transition-all duration-300" style={{ width: `${(stepNumber / totalSteps) * 100}%` }} />
+      </div>
+    </div>
+
+    <div className="flex flex-1">
+      {/* Left Sidebar */}
+      <div className="w-64 bg-slate-50 dark:bg-[#121212] p-8 border-r border-slate-200 dark:border-[#333] shrink-0">
+        <div className="mb-10">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Resume</span>
+            <div className="flex items-center text-xs font-medium">
+              <div className={`w-2 h-2 rounded-full mr-1.5 ${isResumeParsed ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+              <span className={isResumeParsed ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                {isResumeParsed ? 'done' : 'in progress'}
+              </span>
+            </div>
+          </div>
+          {!isResumeParsed ? (
+             <div className="w-full bg-slate-200 dark:bg-[#333] h-1 rounded-full overflow-hidden mb-4">
+                <div className="bg-amber-500 h-full w-2/3 animate-pulse" />
+             </div>
+          ) : (
+             <div className="w-full bg-emerald-100 dark:bg-emerald-900/30 h-1 rounded-full overflow-hidden mb-4">
+                <div className="bg-emerald-500 h-full w-full" />
+             </div>
+          )}
+          <p className="text-xs text-slate-500 leading-relaxed">
+            {!isResumeParsed 
+              ? "Takes 30–60 seconds. We're pulling your work history and skills while you finish these."
+              : "Parsed. While you finish setup, we're matching jobs for you."}
+          </p>
+        </div>
+
+        <div>
+          <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white mb-2 block">Why we ask</span>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Every application asks these. Answer once here, we fill the forms.
+          </p>
+        </div>
+      </div>
+
+      {/* Right Content */}
+      <div className="flex-1 p-10 flex flex-col">
+        <div className="flex-1">
+          {children}
+        </div>
+        <div className="mt-10 flex items-center">
+          <button 
+            onClick={() => step === totalSteps ? handleFinalSubmit() : setStep(step + 1)}
+            className="bg-[#111827] dark:bg-white text-white dark:text-[#111827] px-6 py-3 rounded-lg font-medium flex items-center"
+          >
+            {step === totalSteps ? 'Complete Setup' : 'Continue'} 
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </button>
+          <span className="text-xs text-slate-400 ml-4 flex flex-col">
+            <span>Enter ↵ Continue</span>
+            <span>↑ + Tab Back</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+export default function OnboardingWizard() {
+  const router = useRouter();
+  const { user, token, fetchUser } = useAuthStore();
+  const [step, setStep] = useState(0);
+
+  // Form State
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  
+  // Step 1: Location
+  const [location, setLocation] = useState({ address: '', city: '', zip: '', county: '', country: '', state: '' });
+  
+  // Step 2: Work Status
+  const [visaStatus, setVisaStatus] = useState('US Citizen');
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [needsSponsorship, setNeedsSponsorship] = useState<boolean | null>(null);
+  
+  // Step 3: Preferences
+  const [preferences, setPreferences] = useState({
+    openToInPerson: true,
+    willingToRelocate: false,
+    canStartImmediately: true,
+    reliableTransportation: true,
+    needAccommodations: 'No' as string | null,
+    activeClearance: false,
+    foreignTies: false,
+    gender: ''
+  });
+
+  // Step 4: Application Passwords
+  const [appPasswords, setAppPasswords] = useState([{ domain: 'workday', password: '' }]);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Step 5: Optimization
+  const [resumeOptimization, setResumeOptimization] = useState('Honest');
+  const [coverLetterOpt, setCoverLetterOpt] = useState('Honest');
+  const [autoApprove, setAutoApprove] = useState(true);
+
+  // Background Polling for Resume Status
+  const { data: profileData } = useQuery({
+    queryKey: ['profile', token],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      return await res.json();
+    },
+    enabled: step > 0 && !!token,
+    refetchInterval: (data: any) => {
+      // Keep polling if there's no resume or if the latest resume isn't parsed yet
+      const resumes = data?.user?.resumes || [];
+      const latest = resumes[resumes.length - 1];
+      if (latest && !latest.parsedData) return 3000;
+      return false; // Stop polling
+    }
+  });
+
+  const latestResume = profileData?.user?.resumes?.[profileData.user.resumes.length - 1];
+  const isResumeParsed = latestResume && latestResume.parsedData !== null;
+
+  const handleFileUpload = async (selectedFile: File) => {
+    if (!selectedFile) return;
+    setFile(selectedFile);
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append('resume', selectedFile);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resumes/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('Upload failed');
+      // Advance to step 1
+      setStep(1);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to upload resume. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    setIsUploading(true);
+    try {
+      const fullLocationString = [location.address, location.city, location.state, location.zip, location.country].filter(Boolean).join(', ');
+      
+      const payload = {
+        location: fullLocationString,
+        visaStatus,
+        requiresSponsorship: needsSponsorship,
+        preferences: {
+            openToInPerson: preferences.openToInPerson,
+            willingToRelocate: preferences.willingToRelocate,
+            canStartImmediately: preferences.canStartImmediately,
+            reliableTransportation: preferences.reliableTransportation,
+            needAccommodations: preferences.needAccommodations,
+            activeClearance: preferences.activeClearance,
+            foreignTies: preferences.foreignTies,
+            gender: preferences.gender
+        },
+        appPasswords: appPasswords.filter(a => a.password).map(a => ({ domain: a.domain, password: a.password })),
+        resumeOptimization,
+        coverLetterOpt,
+        autoApprove
+      };
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error("Failed to save profile");
+      await fetchUser(); // Update global auth store (isOnboarded = true)
+      router.push('/dashboard');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save settings.');
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full bg-slate-100 dark:bg-[#1a1a1a] flex items-center justify-center p-4 py-12">
+      {step === 0 && (
+        <Step0 
+          isUploading={isUploading} 
+          file={file} 
+          referralCode={referralCode} 
+          setReferralCode={setReferralCode} 
+          handleFileUpload={handleFileUpload} 
+        />
+      )}
+      
+      {step === 1 && (
+        <MasterLayout stepNumber={1} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+          <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Location</h3>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">Where do you live?</h1>
+          <p className="text-slate-500 mb-10 text-sm">Most job sites need a full address. We'll fill it in automatically from here.</p>
+
+          <div className="mb-8">
+            <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-2">Street Address</label>
+            <input 
+              type="text" placeholder="123 Main St" 
+              className="w-full bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white text-lg shadow-sm transition-shadow"
+              value={location.address} onChange={(e) => setLocation({...location, address: e.target.value})}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-2">City</label>
+              <input type="text" placeholder="San Francisco" className="w-full bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white shadow-sm transition-shadow"
+                value={location.city} onChange={(e) => setLocation({...location, city: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-2">Zip</label>
+              <input type="text" placeholder="94103" className="w-full bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white shadow-sm transition-shadow"
+                value={location.zip} onChange={(e) => setLocation({...location, zip: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-2">Country</label>
+              <input type="text" placeholder="United States" className="w-full bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white shadow-sm transition-shadow"
+                value={location.country} onChange={(e) => setLocation({...location, country: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-2">State</label>
+              <input type="text" placeholder="CA" className="w-full bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white shadow-sm transition-shadow"
+                value={location.state} onChange={(e) => setLocation({...location, state: e.target.value})} />
+            </div>
+          </div>
+        </MasterLayout>
+      )}
+
+      {step === 2 && (
+        <MasterLayout stepNumber={2} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+          <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Work Eligibility</h3>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">What's your work status?</h1>
+          <p className="text-slate-500 mb-10 text-sm">We use this to filter out jobs you can't apply to. Pick the closest one.</p>
+
+          <div className="grid grid-cols-3 gap-3 mb-10">
+            {['US Citizen', 'Permanent Resident', 'H-1B', 'F-1 (Student)', 'OPT', 'CPT', 'J-1', 'L-1', 'O-1', 'TN', 'E-3', 'Other'].map(status => (
+              <button 
+                key={status}
+                onClick={() => setVisaStatus(status)}
+                className={`py-3 px-4 rounded-lg border text-sm font-medium transition-all text-left ${visaStatus === status ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500' : 'border-slate-200 dark:border-[#333] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#444]'}`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-[#222]">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-700 dark:text-slate-300">Are you legally authorized to work in the US?</span>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setIsAuthorized(true)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${isAuthorized === true ? 'bg-white dark:bg-[#333] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setIsAuthorized(false)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${isAuthorized === false ? 'bg-white dark:bg-[#333] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-700 dark:text-slate-300">Will you now, or in the future, require sponsorship?</span>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setNeedsSponsorship(true)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${needsSponsorship === true ? 'bg-white dark:bg-[#333] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setNeedsSponsorship(false)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${needsSponsorship === false ? 'bg-white dark:bg-[#333] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+          </div>
+        </MasterLayout>
+      )}
+
+      {step === 3 && (
+        <MasterLayout stepNumber={3} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+          <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Quick Checklist</h3>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">A few last questions.</h1>
+          <p className="text-slate-500 mb-8 text-sm">Tap through. Defaults work for most people — only change what applies.</p>
+
+          <div className="border border-slate-200 dark:border-[#333] rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-[#222]">
+            <div className="bg-slate-50 dark:bg-[#121212] px-6 py-3">
+              <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Preferences</span>
+            </div>
+            
+            <div className="flex justify-between items-center p-6 hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50">
+              <span className="text-sm text-slate-700 dark:text-slate-300">Open to in-person work?</span>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setPreferences({...preferences, openToInPerson: true})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${preferences.openToInPerson ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setPreferences({...preferences, openToInPerson: false})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${!preferences.openToInPerson ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center p-6 hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50">
+              <span className="text-sm text-slate-700 dark:text-slate-300">Willing to relocate?</span>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setPreferences({...preferences, willingToRelocate: true})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${preferences.willingToRelocate ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setPreferences({...preferences, willingToRelocate: false})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${!preferences.willingToRelocate ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-[#121212] px-6 py-3">
+              <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Background</span>
+            </div>
+
+            <div className="flex justify-between items-center p-6 hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50">
+              <span className="text-sm text-slate-700 dark:text-slate-300">Active government clearance?</span>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setPreferences({...preferences, activeClearance: true})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${preferences.activeClearance ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setPreferences({...preferences, activeClearance: false})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${!preferences.activeClearance ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center p-6 hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50">
+              <div className="flex flex-col">
+                <span className="text-sm text-slate-700 dark:text-slate-300">Family ties to foreign governments?</span>
+                <span className="text-xs text-slate-400">Employers are required to ask.</span>
+              </div>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setPreferences({...preferences, foreignTies: true})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${preferences.foreignTies ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setPreferences({...preferences, foreignTies: false})} className={`px-4 py-1.5 rounded-md text-sm font-medium ${!preferences.foreignTies ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+          </div>
+        </MasterLayout>
+      )}
+
+      {step === 4 && (
+        <MasterLayout stepNumber={4} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+          <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Application Password</h3>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">Set a password for sites that ask</h1>
+          <p className="text-slate-500 mb-8 text-sm max-w-md">Some applications (Workday, iCIMS, Oracle) require you to create an account mid-flow. We use this to sign you up automatically.</p>
+
+          <div className="flex space-x-2 mb-8">
+            <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-[#222] text-xs font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#333]">Workday</span>
+            <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-[#222] text-xs font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#333]">iCIMS</span>
+            <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-[#222] text-xs font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-[#333]">Oracle</span>
+            <span className="px-3 py-1 text-xs font-medium text-slate-400 self-center">+ more</span>
+          </div>
+
+          <div className="border border-slate-200 dark:border-[#333] rounded-xl overflow-hidden mb-6">
+            <div className="bg-slate-50 dark:bg-[#121212] px-6 py-3 flex justify-between items-center border-b border-slate-200 dark:border-[#333]">
+              <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Password</span>
+              <button className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">Generate strong password</button>
+            </div>
+            <div className="p-6">
+              <div className="relative mb-6">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Enter your application password" 
+                  className="w-full bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-3 pr-10 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white shadow-sm transition-shadow"
+                  value={appPasswords[0].password}
+                  onChange={(e) => setAppPasswords([{domain: 'workday', password: e.target.value}])}
+                />
+                <button 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              
+              <ul className="space-y-2">
+                <li className={`text-sm flex items-center ${appPasswords[0].password.length >= 12 ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <div className={`w-3 h-3 rounded-full border mr-2 flex-shrink-0 ${appPasswords[0].password.length >= 12 ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-[#444]'}`} />
+                  At least 12 characters
+                </li>
+                <li className={`text-sm flex items-center ${/[a-z]/.test(appPasswords[0].password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <div className={`w-3 h-3 rounded-full border mr-2 flex-shrink-0 ${/[a-z]/.test(appPasswords[0].password) ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-[#444]'}`} />
+                  At least one lowercase letter
+                </li>
+                <li className={`text-sm flex items-center ${/[A-Z]/.test(appPasswords[0].password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <div className={`w-3 h-3 rounded-full border mr-2 flex-shrink-0 ${/[A-Z]/.test(appPasswords[0].password) ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-[#444]'}`} />
+                  At least one uppercase letter
+                </li>
+                <li className={`text-sm flex items-center ${/[0-9]/.test(appPasswords[0].password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <div className={`w-3 h-3 rounded-full border mr-2 flex-shrink-0 ${/[0-9]/.test(appPasswords[0].password) ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-[#444]'}`} />
+                  At least one number
+                </li>
+                <li className={`text-sm flex items-center ${/[^A-Za-z0-9]/.test(appPasswords[0].password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <div className={`w-3 h-3 rounded-full border mr-2 flex-shrink-0 ${/[^A-Za-z0-9]/.test(appPasswords[0].password) ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-[#444]'}`} />
+                  At least one special character
+                </li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="flex items-center text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
+            Encrypted before save
+          </div>
+        </MasterLayout>
+      )}
+
+      {step === 5 && (
+        <MasterLayout stepNumber={5} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+          <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Application Settings</h3>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">How should we apply?</h1>
+          <p className="text-slate-500 mb-8 text-sm">You can change these anytime from settings.</p>
+
+          <div className="border border-slate-200 dark:border-[#333] rounded-xl overflow-hidden mb-6 divide-y divide-slate-100 dark:divide-[#222]">
+            <div className="bg-slate-50 dark:bg-[#121212] px-6 py-3">
+              <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Resume Optimization</span>
+            </div>
+            
+            <div className={`p-5 cursor-pointer flex items-start transition-colors ${resumeOptimization === 'Off' ? 'bg-blue-50 dark:bg-blue-900/10' : 'hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50'}`} onClick={() => setResumeOptimization('Off')}>
+               <div className={`w-5 h-5 rounded-full border-2 mt-0.5 mr-4 flex-shrink-0 flex items-center justify-center ${resumeOptimization === 'Off' ? 'border-[#111827] dark:border-white' : 'border-slate-300 dark:border-[#444]'}`}>
+                 {resumeOptimization === 'Off' && <div className="w-2.5 h-2.5 rounded-full bg-[#111827] dark:bg-white" />}
+               </div>
+               <div>
+                 <span className="block font-medium text-slate-900 dark:text-white text-sm mb-1">Off</span>
+                 <span className="block text-xs text-slate-500">Send your resume exactly as uploaded.</span>
+               </div>
+            </div>
+
+            <div className={`p-5 cursor-pointer flex items-start transition-colors ${resumeOptimization === 'Honest' ? 'bg-slate-100 dark:bg-[#222]' : 'hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50'}`} onClick={() => setResumeOptimization('Honest')}>
+               <div className={`w-5 h-5 rounded-full border-2 mt-0.5 mr-4 flex-shrink-0 flex items-center justify-center ${resumeOptimization === 'Honest' ? 'border-[#111827] dark:border-white' : 'border-slate-300 dark:border-[#444]'}`}>
+                 {resumeOptimization === 'Honest' && <div className="w-2.5 h-2.5 rounded-full bg-[#111827] dark:bg-white" />}
+               </div>
+               <div>
+                 <span className="block font-medium text-slate-900 dark:text-white text-sm mb-1">Honest</span>
+                 <span className="block text-xs text-slate-500">Reorder and emphasize experience that's relevant to each job.</span>
+               </div>
+            </div>
+
+            <div className={`p-5 cursor-pointer flex items-start transition-colors ${resumeOptimization === 'Aggressive' ? 'bg-slate-100 dark:bg-[#222]' : 'hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50'}`} onClick={() => setResumeOptimization('Aggressive')}>
+               <div className={`w-5 h-5 rounded-full border-2 mt-0.5 mr-4 flex-shrink-0 flex items-center justify-center ${resumeOptimization === 'Aggressive' ? 'border-[#111827] dark:border-white' : 'border-slate-300 dark:border-[#444]'}`}>
+                 {resumeOptimization === 'Aggressive' && <div className="w-2.5 h-2.5 rounded-full bg-[#111827] dark:bg-white" />}
+               </div>
+               <div>
+                 <span className="block font-medium text-slate-900 dark:text-white text-sm mb-1">Aggressive</span>
+                 <span className="block text-xs text-slate-500">Rewrite content to match the job description closely.</span>
+               </div>
+            </div>
+
+            <div className="p-5 flex justify-between items-center bg-white dark:bg-[#1a1a1a]">
+              <div>
+                 <span className="block font-medium text-slate-900 dark:text-white text-sm mb-1">Auto-approve edits?</span>
+                 <span className="block text-xs text-slate-500">Skip the preview step and send optimized files straight through.</span>
+              </div>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-lg p-1">
+                <button onClick={() => setAutoApprove(true)} className={`px-4 py-1.5 rounded-md text-sm font-medium ${autoApprove ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>Yes</button>
+                <button onClick={() => setAutoApprove(false)} className={`px-4 py-1.5 rounded-md text-sm font-medium ${!autoApprove ? 'bg-[#111827] dark:bg-white text-white dark:text-[#111827]' : 'text-slate-500'}`}>No</button>
+              </div>
+            </div>
+          </div>
+        </MasterLayout>
+      )}
+
+    </div>
+  );
+}
