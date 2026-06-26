@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
 
 
-  const { data: jobMatches = [], isLoading: isLoadingMatches } = useQuery({
+  const { data: jobMatches = [], isLoading: isLoadingMatches, refetch: refetchMatches } = useQuery({
     queryKey: ['jobMatches', token],
     queryFn: async () => {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/job-matches`, {
@@ -88,21 +88,47 @@ export default function DashboardPage() {
     ...rawApplications.map((app: any) => [app.jobId, app])
   ]).values());
 
+  const handleApply = async (jobId: string) => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ jobId })
+      });
+      if (res.ok) {
+        refetchMatches();
+        // Also could refetch applications, but refetchInterval will catch it
+      }
+    } catch (err) {
+      console.error('Failed to apply:', err);
+    }
+  };
+
+  const handlePass = async (jobId: string) => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/job-matches/${jobId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        refetchMatches();
+      }
+    } catch (err) {
+      console.error('Failed to pass job:', err);
+    }
+  };
+
   if (isLoading || !user) {
     return <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#1a1a1a]"><Loader2 className="w-8 h-8 animate-spin text-slate-500" /></div>;
   }
 
   // Top matches are AI evaluated JobMatches sorted by fitScore
   const topMatches = jobMatches.slice(0, 5);
-
-  const bgColors = [
-    'bg-[#bbf7d0]', // Light Green
-    'bg-[#fef08a]', // Light Yellow
-    'bg-[#fed7aa]', // Light Orange
-    'bg-[#fbcfe8]', // Light Pink
-    'bg-[#e0e7ff]', // Light Indigo
-    'bg-[#bfdbfe]', // Light Blue
-  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#1a1a1a] text-slate-900 dark:text-slate-200 overflow-x-hidden relative">
@@ -195,9 +221,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex overflow-x-auto scrollbar-hidden pb-4 gap-4 snap-x snap-mandatory hide-scrollbar">
-            {topMatches.length ===
-            
-             0 ? (
+            {topMatches.length === 0 ? (
               <div className="w-full py-12 text-center border border-[#333] border-dashed rounded-xl text-slate-500">
                 {isLoadingMatches ? <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /> : "No matches found yet. Upload a resume to start sourcing jobs!"}
               </div>
@@ -214,7 +238,9 @@ export default function DashboardPage() {
                     onClick={() => setSelectedJob(job)} 
                     layout="scroll" 
                     isMatch={true} 
-                    fitScore={fitScore} 
+                    fitScore={fitScore}
+                    onApply={() => handleApply(job.id)}
+                    onPass={() => handlePass(job.id)} 
                   />
                 );
               })
@@ -312,12 +338,15 @@ export default function DashboardPage() {
                           statusPill = <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-[#172554]/50 text-blue-700 dark:text-[#60a5fa]"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-[#60a5fa] mr-1.5"></span>Needs you</span>;
                         }
 
+                        // Fix: read from dbUser.preferences
+                        const prefs = useAuthStore.getState().dbUser?.preferences || {};
                         let resumeStatus = 'Default';
-                        if (app.resumeOptimization === 'Honest') resumeStatus = 'Honest Fit';
-                        else if (app.resumeOptimization === 'Aggressive') resumeStatus = 'Aggressive Match';
+                        if (prefs.resumeOptimization === 'Honest') resumeStatus = 'Honest Fit';
+                        else if (prefs.resumeOptimization === 'Aggressive') resumeStatus = 'Aggressive Match';
 
                         let coverLetterStatus = 'Off';
-                        if (app.coverLetterOpt === 'Honest') coverLetterStatus = 'Generated';
+                        if (prefs.coverLetterOpt === 'Honest') coverLetterStatus = 'Generated';
+                        else if (prefs.coverLetterOpt === 'Aggressive') coverLetterStatus = 'Aggressive';
                         
                         return (
                           <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-[#222] transition-colors cursor-pointer" onClick={() => setSelectedJob(job)}>
@@ -368,7 +397,10 @@ export default function DashboardPage() {
                                   </>
                                 ) : app.status === 'QUEUED' ? (
                                   <button 
-                                    onClick={(e) => e.stopPropagation()} 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApply(job.id);
+                                    }}
                                     className="px-3 py-1.5 border border-slate-200 dark:border-[#444] bg-white dark:bg-[#1a1a1a] hover:bg-slate-50 dark:hover:bg-[#222] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors shadow-sm"
                                   >
                                     Apply Now
@@ -402,19 +434,19 @@ export default function DashboardPage() {
         )}
         
         {/* Drawer */}
-        <div className={`fixed inset-y-0 right-0 w-full md:w-[480px] bg-white text-slate-900 z-50 transform transition-transform duration-300 shadow-2xl flex flex-col ${selectedJob ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className={`fixed inset-y-0 right-0 w-full md:w-[480px] bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-slate-200 z-50 transform transition-transform duration-300 shadow-2xl flex flex-col ${selectedJob ? 'translate-x-0' : 'translate-x-full'}`}>
           {selectedJob && (
             <>
               {/* Header */}
-              <div className="flex items-start justify-between p-6 pb-4 border-b border-slate-100">
+              <div className="flex items-start justify-between p-6 pb-4 border-b border-slate-100 dark:border-[#333]">
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight mb-1">{selectedJob.title}</h2>
-                  <div className="flex items-center text-sm font-medium text-slate-500">
+                  <div className="flex items-center text-sm font-medium text-slate-500 dark:text-slate-400">
                     <span>{selectedJob.company}</span>
                     <CheckCircleIcon className="w-4 h-4 ml-1 text-slate-400" />
                   </div>
                 </div>
-                <button onClick={() => setSelectedJob(null)} className="p-2 text-slate-400 hover:text-black hover:bg-slate-100 rounded-full transition-colors">
+                <button onClick={() => setSelectedJob(null)} className="p-2 text-slate-400 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#333] rounded-full transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -422,8 +454,8 @@ export default function DashboardPage() {
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
                 
                 {/* Meta details grid */}
-                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs font-semibold text-slate-500">
-                  <div className="flex items-center"><MapPin className="w-4 h-4 mr-2" /> {selectedJob.location || 'Brooklyn, NY'}</div>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center"><MapPin className="w-4 h-4 mr-2" /> {selectedJob.location || 'Remote'}</div>
                   <div className="flex items-center"><Briefcase className="w-4 h-4 mr-2" /> Mid Level</div>
                   <div className="flex items-center"><BuildingIcon className="w-4 h-4 mr-2" /> Remote</div>
                   <div className="flex items-center"><Clock className="w-4 h-4 mr-2" /> Full Time</div>
@@ -431,26 +463,13 @@ export default function DashboardPage() {
                   <div className="flex items-center"><Send className="w-4 h-4 mr-2" /> Software Engineering</div>
                 </div>
                 
-                {/* Skills - Hidden for now as it's not in the DB schema yet */}
-                {selectedJob.skills && selectedJob.skills.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Skills & Technologies</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedJob.skills.map((skill: string) => (
-                        <span key={skill} className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full border border-purple-100">{skill}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
                 {/* Description */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 mb-3">Description</h3>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Description</h3>
                   {selectedJob.description ? (
-                    <div 
-                      className="text-sm prose prose-sm prose-slate max-w-none text-slate-700"
-                      dangerouslySetInnerHTML={{ __html: decodeHTML(selectedJob.description) }} 
-                    />
+                    <div className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
+                      {selectedJob.description}
+                    </div>
                   ) : (
                     <p className="italic text-slate-400 text-sm">No description provided.</p>
                   )}
@@ -458,11 +477,17 @@ export default function DashboardPage() {
               </div>
               
               {/* Bottom Sticky Bar */}
-              <div className="p-5 border-t border-slate-200 bg-white flex items-center justify-between">
-                <a href={selectedJob.url} target="_blank" rel="noreferrer" className="flex items-center text-sm font-bold text-slate-500 hover:text-black transition-colors">
+              <div className="p-5 border-t border-slate-200 dark:border-[#333] bg-white dark:bg-[#1a1a1a] flex items-center justify-between">
+                <a href={selectedJob.url} target="_blank" rel="noreferrer" className="flex items-center text-sm font-bold text-slate-500 hover:text-black dark:hover:text-white transition-colors">
                   <ExternalLink className="w-4 h-4 mr-2" /> View original posting
                 </a>
-                <button className="px-8 py-2.5 bg-black text-white font-bold rounded-full hover:bg-slate-800 transition-colors shadow-md">
+                <button 
+                  onClick={() => {
+                    handleApply(selectedJob.id);
+                    setSelectedJob(null);
+                  }}
+                  className="px-8 py-2.5 bg-black dark:bg-white text-white dark:text-black font-bold rounded-full hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-md"
+                >
                   Apply
                 </button>
               </div>

@@ -14,7 +14,7 @@ export default function SettingsPage() {
     queryKey: ['profile'],
     queryFn: async () => {
       const token = await user?.getIdToken();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch profile');
@@ -26,7 +26,7 @@ export default function SettingsPage() {
   const updateMutation = useMutation({
     mutationFn: async (newSettings: any) => {
       const token = await user?.getIdToken();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/settings`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

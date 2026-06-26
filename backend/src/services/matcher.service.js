@@ -35,7 +35,7 @@ const findCandidateJobsByVector = async (profileText) => {
  * @param {string} profileText
  * @param {Object} job - { id, title, company, description }
  */
-const scoreJobWithAI = async (profileText, job) => {
+const scoreJobWithAI = async (profileText, job, retryCount = 0) => {
     const prompt = `You are an expert technical recruiter. Score how well this candidate fits the job.
 Candidate Profile: ${profileText}
 Job Description: ${job.description}
@@ -52,6 +52,11 @@ Return ONLY a valid JSON object: {"score": <number 1-100>, "reason": "<1 sentenc
         });
         return JSON.parse(completion.choices[0].message.content);
     } catch (err) {
+        // If a socket closes due to the long reranker delay, retry once
+        if (err.code === 'UND_ERR_SOCKET' && retryCount === 0) {
+            logger.warn(`Socket closed on Groq call for job ${job.id}, retrying...`);
+            return await scoreJobWithAI(profileText, job, 1);
+        }
         logger.error(`Groq scoring failed for job ${job.id}: ${err.message}`);
         return null;
     }
@@ -95,14 +100,14 @@ const runMatchingPipelineForResume = async (resume) => {
         return { highScoringCount };
     }
 
-    // Step 2: Rerank with BGE cross-encoder
+    // Step 2: BGE Reranker
     logger.info(`Reranking ${candidates.length} candidates for ${resume.user.email}...`);
-    const reranked = await rerankJobs(profileText, candidates);
-    const topJobs = reranked.slice(0, RERANK_TOP_N);
+    const rerankedCandidates = await rerankJobs(profileText, candidates);
+    const topCandidates = rerankedCandidates.slice(0, RERANK_TOP_N);
 
-    // Step 3: Groq LLM scoring for each top job
-    logger.info(`Scoring top ${topJobs.length} jobs with AI for ${resume.user.email}...`);
-    for (const job of topJobs) {
+    // Step 3: Groq LLM scoring for each top candidate
+    logger.info(`Scoring top ${topCandidates.length} jobs with AI for ${resume.user.email}...`);
+    for (const job of topCandidates) {
         // Skip if already applied
         const alreadyApplied = await prisma.application.findFirst({
             where: { userId: resume.userId, jobId: job.id }

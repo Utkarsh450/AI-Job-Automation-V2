@@ -34,10 +34,33 @@ export default function ExperienceSection({ parsedData, setEditingSection }: Pro
               <div className="w-10 h-10 rounded bg-slate-100 dark:bg-[#222] flex flex-col items-center justify-center shrink-0 border border-slate-200 dark:border-[#333] font-bold text-slate-400">
                 {(exp.company || 'C').substring(0,2).toUpperCase()}
               </div>
-              <div>
+              <div className="flex-1">
                 <h3 className="font-bold text-slate-900 dark:text-white text-sm">{exp.role}</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mb-0.5">{exp.company}</p>
-                <p className="text-xs text-slate-400 font-medium">{exp.duration}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs text-slate-400 font-medium">{exp.duration}</p>
+                  {exp.location && (
+                    <>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <p className="text-xs text-slate-400">{exp.location}</p>
+                    </>
+                  )}
+                </div>
+                
+                {/* Description / Bullet Points */}
+                {exp.description && (
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 whitespace-pre-wrap leading-relaxed">{exp.description}</p>
+                )}
+                {exp.highlights && Array.isArray(exp.highlights) && exp.highlights.length > 0 && (
+                  <ul className="mt-3 space-y-1.5 list-none">
+                    {exp.highlights.map((highlight: string, i: number) => (
+                      <li key={i} className="text-sm text-slate-600 dark:text-slate-400 flex items-start">
+                        <span className="mr-2 text-slate-300 dark:text-slate-600 mt-0.5">•</span>
+                        <span className="leading-relaxed">{highlight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           ))

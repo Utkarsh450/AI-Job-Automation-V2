@@ -34,3 +34,4 @@ app.listen(PORT, () => {
 // restart nodemon to fix module missing
 
 // restart nodemon to show logs
+// Triggering restart because the server crashed due to event loop starvation from the BGE reranker

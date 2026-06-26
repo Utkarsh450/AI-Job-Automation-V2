@@ -42,15 +42,29 @@ export default function ProjectsSection({ parsedData, setEditingSection }: Props
                   ))}
                 </div>
               )}
+              
+              {proj.link && (
+                <a href={proj.link} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline mb-2 inline-block">
+                  {proj.link}
+                </a>
+              )}
 
-              <ul className="space-y-1.5 pl-4 list-none relative">
-                {proj.description ? (
-                    <li className="text-xs text-slate-600 dark:text-slate-400 relative">
-                      <span className="absolute -left-4 top-1.5 w-1 h-1 bg-slate-300 dark:bg-[#555] rounded-full"></span>
-                      {proj.description}
+              {proj.description && (
+                <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed mb-2">
+                  {proj.description}
+                </p>
+              )}
+              
+              {proj.highlights && Array.isArray(proj.highlights) && proj.highlights.length > 0 && (
+                <ul className="space-y-1.5 list-none mt-2">
+                  {proj.highlights.map((highlight: string, i: number) => (
+                    <li key={i} className="text-sm text-slate-600 dark:text-slate-400 flex items-start">
+                      <span className="mr-2 text-slate-300 dark:text-slate-600 mt-0.5">•</span>
+                      <span className="leading-relaxed">{highlight}</span>
                     </li>
-                ) : null}
-              </ul>
+                  ))}
+                </ul>
+              )}
             </div>
           ))
         ) : (

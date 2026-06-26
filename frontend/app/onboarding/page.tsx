@@ -209,7 +209,7 @@ export default function OnboardingWizard() {
   const { data: profileData } = useQuery({
     queryKey: ['profile', token],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       return await res.json();
@@ -259,7 +259,7 @@ export default function OnboardingWizard() {
     formData.append('resume', selectedFile);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resumes/upload`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resume/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -301,7 +301,7 @@ export default function OnboardingWizard() {
         autoApprove
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/users/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

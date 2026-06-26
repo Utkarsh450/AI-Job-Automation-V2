@@ -1,3 +1,4 @@
+
 const prisma = require('../config/db');
 const { getEmbedding } = require('../utils/embeddings');
 const logger = require('../utils/logger');

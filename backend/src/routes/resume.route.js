@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { uploadResume, updateParsedData } = require('../controllers/resume.controller');
+const { uploadResume, updateParsedData, downloadResume } = require('../controllers/resume.controller');
 const { requireDbUser } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -24,5 +24,7 @@ const upload = multer({
 router.post('/upload', requireDbUser, upload.single('resume'), uploadResume);
 // PUT /api/resumes/:id/parsed-data
 router.put('/:id/parsed-data', requireDbUser, updateParsedData);
+// GET /api/resumes/:id/download
+router.get('/:id/download', requireDbUser, downloadResume);
 
 module.exports = router;

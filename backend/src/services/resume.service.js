@@ -30,6 +30,14 @@ const downloadPdfBuffer = (url) => {
 };
 
 /**
+ * Extracts raw text from a PDF Buffer directly in memory.
+ */
+const extractTextFromBuffer = async (buffer) => {
+    const pdfData = await pdfParse(buffer);
+    return pdfData.text;
+};
+
+/**
  * Downloads a PDF from the given URL and extracts its raw text.
  * Combines download + parse into one operation to avoid Inngest Buffer serialization issues.
  * (Inngest serializes step results to JSON, which corrupts Buffer objects.)
@@ -89,7 +97,7 @@ const uploadToCloudinary = (fileBuffer, originalName) => {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
             {
-                resource_type: 'raw',
+                resource_type: 'image',
                 folder: 'resumes',
                 public_id: `resume_${Date.now()}_${originalName?.replace(/\s+/g, '_') || 'upload'}`
             },
@@ -105,6 +113,7 @@ const uploadToCloudinary = (fileBuffer, originalName) => {
 module.exports = {
     downloadPdfBuffer,
     extractTextFromUrl,
+    extractTextFromBuffer,
     parseResumeWithAI,
     saveParsedData,
     uploadToCloudinary

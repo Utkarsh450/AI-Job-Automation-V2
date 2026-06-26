@@ -33,7 +33,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
     { name: 'Browse jobs', href: '/dashboard/jobs', icon: Briefcase },
     { name: 'Inbox', href: '/dashboard/inbox', icon: Mail },
-    { name: 'Tracker', href: '/dashboard/tracker', icon: LineChart },
   ];
 
   const bottomNavItems = [

@@ -1,7 +1,7 @@
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const inngest = require('../config/inngest');
-const { uploadToCloudinary } = require('../services/resume.service');
+const { uploadToCloudinary, extractTextFromBuffer } = require('../services/resume.service');
 
 const uploadResume = async (req, res) => {
     try {
@@ -41,12 +41,25 @@ const uploadResume = async (req, res) => {
             }
         });
 
-        // 5. Trigger background parsing worker (non-fatal if Inngest is unavailable)
+        // 5. Extract text from PDF buffer in-memory (bypasses Cloudinary URL restrictions)
+        let rawText = '';
+        try {
+            rawText = await extractTextFromBuffer(req.file.buffer);
+            if (!rawText || rawText.trim() === '') {
+                throw new Error("Extracted text is empty");
+            }
+        } catch (parseErr) {
+            logger.warn(`Could not extract text from PDF in controller: ${parseErr.message}`);
+            return res.status(400).json({ error: 'Could not extract text from the PDF — it may be image-based or corrupted.' });
+        }
+
+        // 6. Trigger background parsing worker
         try {
             logger.info(`Triggering resume parser for resume ${newResume.id}`);
             await inngest.send({
                 name: 'app/resume.uploaded',
-                data: { resumeId: newResume.id, s3Url: newResume.s3Url, userId: req.user.id }
+                data: { resumeId: newResume.id, s3Url: newResume.s3Url, userId: req.user.id, rawText }
+
             });
         } catch (inngestErr) {
             logger.warn(`Inngest unavailable — resume will not be parsed automatically: ${inngestErr.message}`);
@@ -98,4 +111,50 @@ const updateParsedData = async (req, res) => {
     }
 };
 
-module.exports = { uploadResume, updateParsedData };
+const cloudinary = require('../config/cloudinary');
+
+const downloadResume = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const resume = await prisma.resume.findUnique({ where: { id } });
+        
+        if (!resume) {
+            return res.status(404).json({ error: "Resume not found" });
+        }
+        
+        if (resume.userId !== req.user.id) {
+            return res.status(403).json({ error: "Not authorized to download this resume" });
+        }
+
+        // Parse public_id from Cloudinary URL
+        // e.g., https://res.cloudinary.com/.../image/upload/v12345/resumes/resume_1234.pdf
+        const urlObj = new URL(resume.s3Url);
+        const pathParts = urlObj.pathname.split('/');
+        const uploadIndex = pathParts.indexOf('upload');
+        if (uploadIndex === -1) throw new Error("Invalid Cloudinary URL");
+        
+        // Extract everything after upload/vXXX/
+        // Cloudinary public_ids do not include the file extension
+        // IMPORTANT: We must decodeURIComponent because the URL is encoded (e.g. %28 instead of '(').
+        // Signature generation will fail (HTTP 401) if the string doesn't exactly match the decoded public_id!
+        const publicIdWithExt = decodeURIComponent(pathParts.slice(uploadIndex + 2).join('/'));
+        const publicId = publicIdWithExt.replace(/\.[^/.]+$/, "");
+
+        // Generate a signed URL that bypasses strict delivery 401s
+        const signedUrl = cloudinary.utils.url(publicId, {
+            secure: true,
+            sign_url: true,
+            resource_type: 'image', // Since we uploaded it as 'image' initially
+            format: 'pdf',
+            flags: 'attachment' // Forces download
+        });
+
+        // Return the signed URL to the frontend
+        res.status(200).json({ url: signedUrl });
+    } catch (error) {
+        logger.error(`Download resume error: ${error.message}`);
+        res.status(500).json({ error: "Failed to generate download URL" });
+    }
+};
+
+module.exports = { uploadResume, updateParsedData, downloadResume };

@@ -17,19 +17,18 @@ const {
  *   Node.js Buffer objects. Keeping them together avoids that issue.
  */
 const resumeWorker = inngest.createFunction(
-    { id: 'ai-resume-parser', name: 'AI Resume Parser', event: 'app/resume.uploaded' },
+    { 
+        id: 'ai-resume-parser', 
+        name: 'AI Resume Parser', 
+        triggers: [{ event: 'app/resume.uploaded' }] 
+    },
     async ({ event, step }) => {
-        const { resumeId, s3Url, userId } = event.data;
+        const { resumeId, s3Url, userId, rawText } = event.data;
         logger.info(`Resume parser triggered — resumeId: ${resumeId}, userId: ${userId}`);
 
-        // Step 1: Download PDF and extract text (combined to avoid Buffer serialization issues)
-        const rawText = await step.run('Download and Extract Text', async () => {
-            const text = await extractTextFromUrl(s3Url);
-            if (!text || text.trim() === '') {
-                throw new Error('Could not extract text from the PDF — it may be image-based or corrupted.');
-            }
-            return text;
-        });
+        if (!rawText) {
+            throw new Error("No raw text provided to the resume parser worker.");
+        }
 
         // Step 2: Parse extracted text with AI
         const parsedData = await step.run('Parse Resume with AI', async () => {
@@ -42,9 +41,9 @@ const resumeWorker = inngest.createFunction(
             logger.info(`Resume ${resumeId} parsed and saved successfully.`);
         });
 
-        // Step 4: Trigger job matcher for this user
-        await step.sendEvent('Trigger Job Matcher', {
-            name: 'app/matches.evaluate',
+        // Step 4: Trigger job scraper which will subsequently trigger matcher
+        await step.sendEvent('Trigger Job Scraper', {
+            name: 'app/jobs.scrape',
             data: { userId }
         });
 
