@@ -1,65 +1,36 @@
 const inngest = require('../config/inngest');
-const prisma = require('../config/db');
-const { getEmbedding } = require('../utils/embeddings');
 const logger = require('../utils/logger');
+const { scrapeAllBoards } = require('../services/job.service');
 
-// We will scrape these popular companies' public Greenhouse boards
-const TARGET_BOARDS = ['discord', 'figma'];
-
+/**
+ * Inngest worker: greenhouse-scraper
+ * Runs every hour on a cron schedule.
+ * Delegates all scraping logic to job.service.js.
+ */
 const scraperWorker = inngest.createFunction(
-  { 
-    id: "greenhouse-scraper",
-    triggers: [{ cron: "0 * * * *" }] // Run every hour
-  },
-  async ({ step }) => {
-    logger.info("Starting Greenhouse Scraper Worker...");
-    
-    for (const board of TARGET_BOARDS) {
-        await step.run(`Scrape ${board}`, async () => {
-            try {
-                const response = await fetch(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs?content=true`);
-                if (!response.ok) return;
-                const data = await response.json();
-                const jobsToProcess = data.jobs || [];
+    {
+        id: 'greenhouse-scraper',
+        name: 'Greenhouse Job Scraper',
+        triggers: [{ cron: '0 * * * *' }]
+    },
+    async ({ step }) => {
+        logger.info('Greenhouse Scraper Worker triggered.');
 
-                for (const job of jobsToProcess) {
-                    // Check if job already exists to prevent duplicate embedding work
-                    const exists = await prisma.job.findFirst({ where: { url: job.absolute_url } });
-                    if (exists) continue;
-
-                    // Clean the HTML description to plain text roughly
-                    const cleanDescription = (job.content || '').replace(/<[^>]*>?/gm, ' ').substring(0, 2000);
-                    
-                    // Generate Vector Embedding locally using Transformers.js
-                    const embeddingArray = await getEmbedding(`${job.title} ${job.location?.name || ''} ${cleanDescription}`);
-                    const embeddingVector = `[${embeddingArray.join(',')}]`;
-
-                    // We must use a raw SQL query to insert pgvector data, as Prisma ORM doesn't natively map vector writes yet
-                    await prisma.$executeRaw`
-                        INSERT INTO "Job" (id, title, company, location, description, url, "atsPlatform", embedding, "createdAt")
-                        VALUES (
-                            gen_random_uuid(), 
-                            ${job.title}, 
-                            ${board}, 
-                            ${job.location?.name || 'Remote'}, 
-                            ${cleanDescription}, 
-                            ${job.absolute_url}, 
-                            'greenhouse', 
-                            ${embeddingVector}::vector, 
-                            NOW()
-                        )
-                    `;
-                }
-                logger.info(`Successfully scraped jobs for ${board}`);
-            } catch (err) {
-                logger.error(`Error scraping ${board}: ${err.message}`);
-            }
+        // Step 1: Scrape all configured boards
+        const results = await step.run('Scrape All Boards', async () => {
+            return await scrapeAllBoards();
         });
+
+        // Step 2: Notify matcher to re-evaluate all users against new jobs
+        // Uses step.sendEvent so this trigger is part of the durable step graph
+        await step.sendEvent('Trigger Matcher', {
+            name: 'app/scrape.completed',
+            data: {}
+        });
+
+        logger.info('Scrape cycle complete.', results);
+        return { status: 'success', results };
     }
-    await inngest.send({ name: 'app/scrape.completed' });
-    
-    return { status: "success", message: "Job discovery cycle completed." };
-  }
 );
 
 module.exports = { scraperWorker };

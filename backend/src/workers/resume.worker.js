@@ -1,100 +1,54 @@
 const inngest = require('../config/inngest');
 const prisma = require('../config/db');
-const groq = require('../config/groq');
-const pdfParse = require('pdf-parse');
 const logger = require('../utils/logger');
-const https = require('https');
+const {
+    extractTextFromUrl,
+    parseResumeWithAI,
+    saveParsedData
+} = require('../services/resume.service');
 
-// Helper function to download PDF buffer from Cloudinary URL
-const downloadBuffer = (url) => {
-    return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-            if (res.statusCode !== 200) {
-                return reject(new Error(`Failed to download, status code: ${res.statusCode}`));
-            }
-            const data = [];
-            res.on('data', (chunk) => data.push(chunk));
-            res.on('end', () => resolve(Buffer.concat(data)));
-        }).on('error', reject);
-    });
-};
-
+/**
+ * Inngest worker: ai-resume-parser
+ * Listens for `app/resume.uploaded`, parses the resume with AI, and saves the result.
+ *
+ * Step design note:
+ *   Download + text extraction are combined into ONE step intentionally.
+ *   Inngest serializes step results to JSON between steps, which corrupts
+ *   Node.js Buffer objects. Keeping them together avoids that issue.
+ */
 const resumeWorker = inngest.createFunction(
-    { id: "ai-resume-parser", event: "app/resume.uploaded" },
+    { id: 'ai-resume-parser', name: 'AI Resume Parser', event: 'app/resume.uploaded' },
     async ({ event, step }) => {
         const { resumeId, s3Url, userId } = event.data;
-        logger.info(`Starting AI Resume Parser for resume ${resumeId}...`);
+        logger.info(`Resume parser triggered — resumeId: ${resumeId}, userId: ${userId}`);
 
-        try {
-            // 1. Download PDF from Cloudinary
-            const pdfBuffer = await step.run("Download PDF", async () => {
-                return await downloadBuffer(s3Url);
-            });
-
-            // 2. Extract text using pdf-parse
-            const rawText = await step.run("Extract Text", async () => {
-                const pdfData = await pdfParse(pdfBuffer);
-                return pdfData.text;
-            });
-
-            if (!rawText || rawText.trim() === '') {
-                throw new Error("Could not extract text from the PDF");
+        // Step 1: Download PDF and extract text (combined to avoid Buffer serialization issues)
+        const rawText = await step.run('Download and Extract Text', async () => {
+            const text = await extractTextFromUrl(s3Url);
+            if (!text || text.trim() === '') {
+                throw new Error('Could not extract text from the PDF — it may be image-based or corrupted.');
             }
+            return text;
+        });
 
-            // 3. Extract JSON using Groq
-            const parsedJson = await step.run("Extract JSON with AI", async () => {
-                logger.info(`Extracting JSON from resume using Groq for user ${userId}`);
-                const completion = await groq.chat.completions.create({
-                    messages: [
-                        { 
-                            role: "system", 
-                            content: `You are an expert ATS resume parser. Extract ALL possible information from the raw text. Return ONLY a valid JSON object matching exactly this structure with no markdown wrapping:
-{
-  "personal_info": { "name": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": "", "portfolio": "" },
-  "professional_summary": "",
-  "skills": ["", ""],
-  "experience": [ { "company": "", "role": "", "duration": "", "description": ["bullet 1", "bullet 2"] } ],
-  "education": [ { "institution": "", "degree": "", "year": "", "gpa": "" } ],
-  "projects": [ { "name": "", "description": "", "technologies": [""] } ],
-  "certifications": [""]
-}` 
-                        },
-                        { 
-                            role: "user", 
-                            content: rawText 
-                        }
-                    ],
-                    model: "llama-3.3-70b-versatile",
-                    response_format: { type: "json_object" }
-                });
+        // Step 2: Parse extracted text with AI
+        const parsedData = await step.run('Parse Resume with AI', async () => {
+            return await parseResumeWithAI(rawText);
+        });
 
-                return JSON.parse(completion.choices[0].message.content);
-            });
+        // Step 3: Persist parsed data to database
+        await step.run('Save Parsed Data', async () => {
+            await saveParsedData(resumeId, parsedData);
+            logger.info(`Resume ${resumeId} parsed and saved successfully.`);
+        });
 
-            // 4. Update Resume in Database
-            await step.run("Update Database", async () => {
-                await prisma.resume.update({
-                    where: { id: resumeId },
-                    data: { parsedData: parsedJson }
-                });
-            });
+        // Step 4: Trigger job matcher for this user
+        await step.sendEvent('Trigger Job Matcher', {
+            name: 'app/matches.evaluate',
+            data: { userId }
+        });
 
-            logger.info(`Resume parsed successfully for user ${userId}`);
-
-            // 5. Trigger the AI Job Matcher Worker (previously it listened to resume.uploaded directly)
-            await step.sendEvent("trigger-matcher", {
-                name: "app/matches.evaluate",
-                data: { userId }
-            });
-
-            return { success: true, resumeId };
-
-        } catch (error) {
-            logger.error(`Resume parsing failed for ${resumeId}: ${error.message}`);
-            
-            // Mark as failed in DB if needed, but for now just throw to Inngest for retries
-            throw error;
-        }
+        return { success: true, resumeId };
     }
 );
 
