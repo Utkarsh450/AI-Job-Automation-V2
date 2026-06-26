@@ -47,6 +47,9 @@ const insertJobWithEmbedding = async (job, board) => {
     const embeddingArray = await getEmbedding(`${job.title} ${job.location?.name || ''} ${cleanDescription}`);
     const embeddingVector = `[${embeddingArray.join(',')}]`;
 
+    // Decode HTML entities so we store actual HTML instead of &lt;div&gt;
+    // We can use a simple regex replacement for common entities, or just rely on the frontend decoding.
+    // We'll store the full content in the DB for the UI, and use the truncated cleanDescription for AI.
     await prisma.$executeRaw`
         INSERT INTO "Job" (id, title, company, location, description, url, "atsPlatform", embedding, "createdAt")
         VALUES (
@@ -54,7 +57,7 @@ const insertJobWithEmbedding = async (job, board) => {
             ${job.title},
             ${board},
             ${job.location?.name || 'Remote'},
-            ${cleanDescription},
+            ${job.content},
             ${job.absolute_url},
             'greenhouse',
             ${embeddingVector}::vector,
