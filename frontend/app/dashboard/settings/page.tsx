@@ -42,9 +42,9 @@ export default function SettingsPage() {
     }
   });
 
-  const resumeOpt = updateMutation.variables?.resumeOptimization ?? data?.user?.resumeOptimization ?? 'Honest';
-  const coverOpt = updateMutation.variables?.coverLetterOpt ?? data?.user?.coverLetterOpt ?? 'Off';
-  const autoApprove = updateMutation.variables?.autoApprove ?? data?.user?.autoApprove ?? true;
+  const resumeOpt = updateMutation.variables?.resumeOptimization ?? data?.user?.preferences?.resumeOptimization ?? 'Honest';
+  const coverOpt = updateMutation.variables?.coverLetterOpt ?? data?.user?.preferences?.coverLetterOpt ?? 'Off';
+  const autoApprove = updateMutation.variables?.autoApprove ?? data?.user?.preferences?.autoApprove ?? true;
 
   if (isLoading || !user || isQueryLoading) {
     return <div className="h-screen w-full flex items-center justify-center bg-[#1a1a1a]"><Loader2 className="w-8 h-8 animate-spin text-slate-500" /></div>;

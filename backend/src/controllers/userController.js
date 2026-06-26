@@ -1,6 +1,7 @@
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
+const { encrypt } = require('../utils/encryption');
 
 // This function handles creating a new user in the database
 const createUser = async (req, res) => {
@@ -99,11 +100,10 @@ const updateProfile = async (req, res) => {
             });
         }
 
-        // Upsert app passwords
+        // Upsert app passwords — encrypted with AES-256-GCM before storage
         if (appPasswords && appPasswords.length > 0) {
             for (const app of appPasswords) {
-                // In production, you would hash/encrypt this password!
-                // For demonstration, storing plain or basic encryption
+                const encryptedPassword = encrypt(app.password);
                 await prisma.applicationPassword.upsert({
                     where: {
                         userId_domain: {
@@ -114,11 +114,11 @@ const updateProfile = async (req, res) => {
                     create: {
                         userId: req.user.id,
                         domain: app.domain,
-                        username: req.user.email, // Defaults to user's email
-                        encryptedPassword: app.password // SHOULD BE ENCRYPTED
+                        username: req.user.email,
+                        encryptedPassword
                     },
                     update: {
-                        encryptedPassword: app.password
+                        encryptedPassword
                     }
                 });
             }
@@ -135,16 +135,23 @@ const updateSettings = async (req, res) => {
     try {
         const { resumeOptimization, coverLetterOpt, autoApprove } = req.body;
 
-        const user = await prisma.user.update({
-            where: { id: req.user.id },
-            data: {
+        // These fields live on UserPreference, NOT the User model
+        const updatedPrefs = await prisma.userPreference.upsert({
+            where: { userId: req.user.id },
+            create: {
+                userId: req.user.id,
+                ...(resumeOptimization !== undefined && { resumeOptimization }),
+                ...(coverLetterOpt !== undefined && { coverLetterOpt }),
+                ...(autoApprove !== undefined && { autoApprove }),
+            },
+            update: {
                 ...(resumeOptimization !== undefined && { resumeOptimization }),
                 ...(coverLetterOpt !== undefined && { coverLetterOpt }),
                 ...(autoApprove !== undefined && { autoApprove }),
             }
         });
 
-        res.status(200).json({ message: 'Settings updated', user });
+        res.status(200).json({ message: 'Settings updated', preferences: updatedPrefs });
     } catch (error) {
         logger.error(`Error updating settings: ${error.message}`);
         res.status(500).json({ error: 'Failed to update settings' });

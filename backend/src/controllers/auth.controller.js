@@ -28,11 +28,15 @@ const registerUser = async (req, res) => {
                 data: { email, firebaseUid: uid }
             });
             
-            // Trigger welcome email event ONLY for completely new users
-            await inngest.send({
-                name: 'app/user.registered',
-                data: { email }
-            });
+            // Trigger welcome email — non-fatal: if Inngest is down, user still registers
+            try {
+                await inngest.send({
+                    name: 'app/user.registered',
+                    data: { email }
+                });
+            } catch (inngestErr) {
+                logger.warn(`Welcome email event failed (non-fatal): ${inngestErr.message}`);
+            }
         }
         
         logger.info(`User registered/linked: ${email}`);

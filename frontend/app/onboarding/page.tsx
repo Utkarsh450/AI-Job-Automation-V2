@@ -161,8 +161,15 @@ const MasterLayout = ({ children, stepNumber, totalSteps, step, setStep, isResum
 
 export default function OnboardingWizard() {
   const router = useRouter();
-  const { user, token, fetchUser } = useAuthStore();
+  const { user, token, fetchUser, dbUser } = useAuthStore();
   const [step, setStep] = useState(0);
+
+  // Guard: redirect already-onboarded users back to dashboard
+  useEffect(() => {
+    if (dbUser && dbUser.isOnboarded) {
+      router.push('/dashboard');
+    }
+  }, [dbUser, router]);
 
   // Form State
   const [file, setFile] = useState<File | null>(null);
@@ -219,6 +226,29 @@ export default function OnboardingWizard() {
 
   const latestResume = profileData?.user?.resumes?.[profileData.user.resumes.length - 1];
   const isResumeParsed = latestResume && latestResume.parsedData !== null;
+
+  const generatePassword = () => {
+    const lower = 'abcdefghijklmnopqrstuvwxyz';
+    const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*()-_=+';
+    const all = lower + upper + numbers + special;
+    // Ensure at least one of each required type
+    let pwd = [
+      lower[Math.floor(Math.random() * lower.length)],
+      upper[Math.floor(Math.random() * upper.length)],
+      numbers[Math.floor(Math.random() * numbers.length)],
+      special[Math.floor(Math.random() * special.length)],
+    ];
+    // Fill remaining characters (total 16)
+    for (let i = pwd.length; i < 16; i++) {
+      pwd.push(all[Math.floor(Math.random() * all.length)]);
+    }
+    // Shuffle
+    pwd = pwd.sort(() => Math.random() - 0.5);
+    const generated = pwd.join('');
+    setAppPasswords([{ domain: 'workday', password: generated }]);
+  };
 
   const handleFileUpload = async (selectedFile: File) => {
     if (!selectedFile) return;
@@ -447,7 +477,9 @@ export default function OnboardingWizard() {
           <div className="border border-slate-200 dark:border-[#333] rounded-xl overflow-hidden mb-6">
             <div className="bg-slate-50 dark:bg-[#121212] px-6 py-3 flex justify-between items-center border-b border-slate-200 dark:border-[#333]">
               <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Password</span>
-              <button className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">Generate strong password</button>
+          <button className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline" onClick={generatePassword}>
+              Generate strong password
+            </button>
             </div>
             <div className="p-6">
               <div className="relative mb-6">

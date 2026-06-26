@@ -71,15 +71,21 @@ const useAuthStore = create((set, get) => ({
 
   loginWithEmail: async (email, password) => {
     try {
-      // Attempt to sign in
+      // Attempt to sign in first
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      // If user doesn't exist or invalid credentials, try to create an account
-      try {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } catch (regError) {
-        console.error("Email Auth Error:", regError);
-        throw regError;
+    } catch (loginError) {
+      // Only auto-register if the user genuinely doesn't have an account yet
+      if (loginError.code === 'auth/user-not-found') {
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+        } catch (regError) {
+          console.error("Registration Error:", regError);
+          throw regError;
+        }
+      } else {
+        // Wrong password, invalid email, too many attempts, etc. — surface the real error
+        console.error("Login Error:", loginError);
+        throw loginError;
       }
     }
   },
