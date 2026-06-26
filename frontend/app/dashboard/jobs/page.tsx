@@ -177,7 +177,10 @@ export default function BrowseJobsPage() {
               <span className="flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" />{selectedJob.location || 'Remote'}</span>
             </div>
             
-            <button className="w-full py-3 bg-black text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm">
+            <button 
+              onClick={() => alert('Apply functionality is currently disabled.')}
+              className="w-full py-3 bg-black text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
+            >
               <Briefcase className="w-4 h-4 mr-2" />
               Apply via Tsenta
             </button>

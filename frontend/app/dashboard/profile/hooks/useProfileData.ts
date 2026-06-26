@@ -15,10 +15,22 @@ export function useProfileData() {
       return res.json();
     },
     enabled: !!token,
+    // Poll every 3 seconds if the primary resume exists but hasn't been parsed yet
+    refetchInterval: (query) => {
+      const currentProfile = query.state?.data?.user;
+      const currentResume = currentProfile?.resumes?.find((r: any) => r.isPrimary);
+      // If we have a resume but it has no parsed data, keep polling
+      if (currentResume && (!currentResume.parsedData || Object.keys(currentResume.parsedData).length === 0)) {
+        return 3000;
+      }
+      return false; // Stop polling
+    }
   });
 
   const profile = queryData?.user;
-  const latestResume = profile?.resumes && profile.resumes.length > 0 ? profile.resumes[profile.resumes.length - 1] : null;
+  // Always use the primary resume, or fallback to the last one if none are primary for some reason
+  const latestResume = profile?.resumes?.find((r: any) => r.isPrimary) 
+                       || (profile?.resumes && profile.resumes.length > 0 ? profile.resumes[profile.resumes.length - 1] : null);
   const parsedData = latestResume?.parsedData || {};
 
   const uploadMutation = useMutation({

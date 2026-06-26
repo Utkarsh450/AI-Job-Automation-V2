@@ -24,7 +24,7 @@ const matcherWorker = inngest.createFunction(
         const resumeFilter = event?.data?.userId ? { userId: event.data.userId } : {};
 
         const resumes = await prisma.resume.findMany({
-            where: { ...resumeFilter, parsedData: { not: null } },
+            where: { ...resumeFilter, parsedData: { not: null }, isPrimary: true },
             include: { user: true }
         });
 

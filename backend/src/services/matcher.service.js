@@ -70,12 +70,15 @@ Return ONLY a valid JSON object: {"score": <number 1-100>, "reason": "<1 sentenc
  */
 const saveJobMatch = async ({ userId, jobId, fitScore, reason, gapAnalysis }) => {
     try {
-        return await prisma.jobMatch.create({
-            data: { userId, jobId, fitScore, reason, gapAnalysis }
+        return await prisma.jobMatch.upsert({
+            where: {
+                userId_jobId: { userId, jobId }
+            },
+            create: { userId, jobId, fitScore, reason, gapAnalysis },
+            update: { fitScore, reason, gapAnalysis }
         });
     } catch (err) {
-        // P2002 = unique constraint violation (already matched)
-        if (err.code === 'P2002') return null;
+        logger.error(`Failed to save/update job match: ${err.message}`);
         throw err;
     }
 };

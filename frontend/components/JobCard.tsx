@@ -70,11 +70,11 @@ export default function JobCard({
         {/* Bottom Info Pills */}
         <div className="mt-auto flex flex-wrap gap-2">
           <span className="bg-white/40 dark:bg-white/5 px-2 py-1 rounded border border-white/20 dark:border-white/10 text-[11px] font-bold flex items-center text-slate-900 dark:text-slate-300">
-            Full Time
+            {job.atsPlatform ? job.atsPlatform.charAt(0).toUpperCase() + job.atsPlatform.slice(1) : 'Direct'}
           </span>
           {!isMatch && (
             <span className="bg-white/40 dark:bg-white/5 px-2 py-1 rounded border border-white/20 dark:border-white/10 text-[11px] font-bold flex items-center text-slate-900 dark:text-slate-300">
-              2 days ago
+              {job.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 0} days ago
             </span>
           )}
         </div>

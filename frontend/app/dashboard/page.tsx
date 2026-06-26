@@ -89,22 +89,24 @@ export default function DashboardPage() {
   ]).values());
 
   const handleApply = async (jobId: string) => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ jobId })
-      });
-      if (res.ok) {
-        refetchMatches();
-        // Also could refetch applications, but refetchInterval will catch it
-      }
-    } catch (err) {
-      console.error('Failed to apply:', err);
-    }
+    // Temporarily disabled as per request
+    alert('Apply functionality is currently disabled.');
+    
+    // try {
+    //   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
+    //     method: 'POST',
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //       'Authorization': `Bearer ${token}`
+    //     },
+    //     body: JSON.stringify({ jobId })
+    //   });
+    //   if (res.ok) {
+    //     refetchMatches();
+    //   }
+    // } catch (err) {
+    //   console.error('Failed to apply:', err);
+    // }
   };
 
   const handlePass = async (jobId: string) => {
@@ -456,20 +458,19 @@ export default function DashboardPage() {
                 {/* Meta details grid */}
                 <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   <div className="flex items-center"><MapPin className="w-4 h-4 mr-2" /> {selectedJob.location || 'Remote'}</div>
-                  <div className="flex items-center"><Briefcase className="w-4 h-4 mr-2" /> Mid Level</div>
-                  <div className="flex items-center"><BuildingIcon className="w-4 h-4 mr-2" /> Remote</div>
-                  <div className="flex items-center"><Clock className="w-4 h-4 mr-2" /> Full Time</div>
-                  <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" /> 2+ years experience</div>
-                  <div className="flex items-center"><Send className="w-4 h-4 mr-2" /> Software Engineering</div>
+                  <div className="flex items-center"><BuildingIcon className="w-4 h-4 mr-2" /> {selectedJob.company}</div>
+                  <div className="flex items-center"><Briefcase className="w-4 h-4 mr-2" /> {selectedJob.atsPlatform ? selectedJob.atsPlatform.charAt(0).toUpperCase() + selectedJob.atsPlatform.slice(1) : 'Direct'}</div>
+                  <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" /> Scraped {new Date(selectedJob.createdAt || Date.now()).toLocaleDateString()}</div>
                 </div>
                 
                 {/* Description */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Description</h3>
                   {selectedJob.description ? (
-                    <div className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
-                      {selectedJob.description}
-                    </div>
+                    <div 
+                      className="text-sm text-slate-700 dark:text-slate-300 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: decodeHTML(selectedJob.description) }}
+                    />
                   ) : (
                     <p className="italic text-slate-400 text-sm">No description provided.</p>
                   )}
