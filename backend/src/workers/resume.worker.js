@@ -41,9 +41,9 @@ const resumeWorker = inngest.createFunction(
             logger.info(`Resume ${resumeId} parsed and saved successfully.`);
         });
 
-        // Step 4: Trigger job scraper which will subsequently trigger matcher
-        await step.sendEvent('Trigger Job Scraper', {
-            name: 'app/jobs.scrape',
+        // Step 4: Trigger AI Matcher directly to score existing jobs against this user
+        await step.sendEvent('Trigger AI Matcher', {
+            name: 'app/matches.evaluate',
             data: { userId }
         });
 

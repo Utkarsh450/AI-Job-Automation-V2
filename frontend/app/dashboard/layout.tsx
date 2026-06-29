@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import useAuthStore from '../../src/store/useAuthStore';
-import { ThemeToggle } from '../../components/theme-toggle';
 import {
   Rocket,
   LayoutGrid,
@@ -92,7 +91,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-blue-600 dark:text-white' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200'}`} strokeWidth={isActive ? 2.5 : 2} />
                 {isExpanded && (
-                  <span className="ml-3 whitespace-nowrap text-sm">{item.name}</span>
+                  <div className="ml-3 flex-1 flex items-center justify-between">
+                    <span className="whitespace-nowrap text-sm">{item.name}</span>
+                    {item.name === 'Inbox' && dbUser?._count?.emails > 0 && (
+                      <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        {dbUser._count.emails}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {!isExpanded && item.name === 'Inbox' && dbUser?._count?.emails > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full border border-white dark:border-[#1a1a1a]"></span>
                 )}
               </Link>
             );
@@ -136,7 +145,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex items-center space-x-2">
-            <ThemeToggle />
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors"

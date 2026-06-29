@@ -1,7 +1,7 @@
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
-const { encrypt } = require('../utils/encryption');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 // This function handles creating a new user in the database
 const createUser = async (req, res) => {
@@ -45,10 +45,20 @@ const getProfile = async (req, res) => {
                 preferences: true,
                 appPasswords: true,
                 _count: {
-                    select: { applications: true }
+                    select: { 
+                        applications: true,
+                        emails: { where: { isRead: false } }
+                    }
                 }
             }
         });
+
+        if (user && user.appPasswords) {
+            user.appPasswords = user.appPasswords.map(app => ({
+                ...app,
+                encryptedPassword: decrypt(app.encryptedPassword) // send plain text back to the authenticated user
+            }));
+        }
 
         res.status(200).json({ user });
     } catch (error) {
@@ -133,7 +143,7 @@ const updateProfile = async (req, res) => {
 
 const updateSettings = async (req, res) => {
     try {
-        const { resumeOptimization, coverLetterOpt, autoApprove } = req.body;
+        const { resumeOptimization, coverLetterOpt, autoApprove, appPasswords } = req.body;
 
         // These fields live on UserPreference, NOT the User model
         const updatedPrefs = await prisma.userPreference.upsert({
@@ -151,7 +161,31 @@ const updateSettings = async (req, res) => {
             }
         });
 
-        res.status(200).json({ message: 'Settings updated', preferences: updatedPrefs });
+        if (appPasswords && appPasswords.length > 0) {
+            const { encrypt } = require('../utils/encryption');
+            for (const app of appPasswords) {
+                const encryptedPassword = encrypt(app.password);
+                await prisma.applicationPassword.upsert({
+                    where: {
+                        userId_domain: {
+                            userId: req.user.id,
+                            domain: app.domain
+                        }
+                    },
+                    create: {
+                        userId: req.user.id,
+                        domain: app.domain,
+                        username: req.user.email,
+                        encryptedPassword
+                    },
+                    update: {
+                        encryptedPassword
+                    }
+                });
+            }
+        }
+
+        res.status(200).json({ message: "Settings updated successfully", preferences: updatedPrefs });
     } catch (error) {
         logger.error(`Error updating settings: ${error.message}`);
         res.status(500).json({ error: 'Failed to update settings' });

@@ -55,8 +55,8 @@ model UserPreference {
   targetSalary       Int?
 
   // Application Settings
-  resumeOptimization String   @default("Honest") // Off, Honest, Aggressive
-  coverLetterOpt     String   @default("Off")    // Off, Honest, Aggressive
+  resumeOptimization String   @default("Optimized") // Off, Optimized, Aggressive
+  coverLetterOpt     String   @default("Off")       // Off, Optimized, Aggressive
   autoApprove        Boolean  @default(true)
 
   // Work Preferences (From Onboarding Step 3)

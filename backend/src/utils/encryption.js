@@ -39,12 +39,17 @@ const decrypt = (encryptedData) => {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
 
-    const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);
-    decipher.setAuthTag(authTag);
+    try {
+        const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);
+        decipher.setAuthTag(authTag);
 
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    } catch (err) {
+        console.error('Decryption failed:', err.message);
+        return '[Encrypted Data]';
+    }
 };
 
 module.exports = { encrypt, decrypt };

@@ -7,6 +7,7 @@ const { matcherWorker } = require('../workers/matcher.worker');
 const { resumeWorker } = require('../workers/resume.worker');
 const { sendWelcomeEmail, sendMatchAlertEmail } = require('../workers/email.worker');
 const { cleanupStaleJobsWorker } = require('../workers/cleanup.worker');
+const { tailorWorker } = require('../workers/tailor.worker');
 
 const router = express.Router();
 
@@ -18,7 +19,8 @@ router.use('/', serve({
     resumeWorker,
     sendWelcomeEmail,
     sendMatchAlertEmail,
-    cleanupStaleJobsWorker
+    cleanupStaleJobsWorker,
+    tailorWorker
   ],
 }));
 

@@ -12,28 +12,22 @@ const scraperWorker = inngest.createFunction(
         id: 'greenhouse-scraper',
         name: 'Greenhouse Job Scraper',
         triggers: [
-            { cron: '*/30 * * * *' },
-            { event: 'app/jobs.scrape' }
+            { cron: '*/30 * * * *' }
         ],
         concurrency: 1 // Prevent multiple concurrent scrapers
     },
     async ({ event, step }) => {
         logger.info('Greenhouse Scraper Worker triggered.');
 
-        // Extract userId if this was triggered manually by a specific user (e.g. on resume upload)
-        const userId = event?.data?.userId;
-
         // Step 1: Scrape all configured boards
         const results = await step.run('Scrape All Boards', async () => {
             return await scrapeAllBoards();
         });
 
-        // Step 2: Notify matcher
-        // If userId is present, the matcher will only evaluate this specific user.
-        // Otherwise, it evaluates all users against the new jobs.
+        // Step 2: Notify matcher to evaluate all new jobs globally
         await step.sendEvent('Trigger Matcher', {
             name: 'app/scrape.completed',
-            data: userId ? { userId } : {}
+            data: {}
         });
 
         logger.info('Scrape cycle complete.', results);
