@@ -13,12 +13,14 @@ const applicationRoutes = require('./src/routes/application.route');
 const emailRoutes = require('./src/routes/email.route');
 const inngestRoutes = require('./src/routes/inngest.route');
 const jobMatchRoutes = require('./src/routes/jobMatch.route');
+const googleAuthRoutes = require('./src/routes/googleAuth.route');
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/auth/google', googleAuthRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/emails', emailRoutes);
 app.use('/api/inngest', inngestRoutes);

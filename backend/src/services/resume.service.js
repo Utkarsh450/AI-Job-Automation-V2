@@ -1,7 +1,7 @@
 const https = require('https');
 const http = require('http');
 const pdfParse = require('pdf-parse');
-const groq = require('../config/groq');
+const { generateAICompletion } = require('./ai.service');
 const cloudinary = require('../config/cloudinary');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -53,11 +53,7 @@ const extractTextFromUrl = async (url) => {
  */
 const parseResumeWithAI = async (rawText) => {
     logger.info('Sending resume text to Groq for AI parsing...');
-    const completion = await groq.chat.completions.create({
-        messages: [
-            {
-                role: 'system',
-                content: `You are an expert ATS resume parser. Extract ALL possible information from the raw text. Return ONLY a valid JSON object matching exactly this structure with no markdown wrapping:
+    const systemPrompt = `You are an expert ATS resume parser. Extract ALL possible information from the raw text. Return ONLY a valid JSON object matching exactly this structure with no markdown wrapping:
 {
   "personal_info": { "name": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": "", "portfolio": "" },
   "professional_summary": "",
@@ -66,18 +62,10 @@ const parseResumeWithAI = async (rawText) => {
   "education": [ { "institution": "", "degree": "", "year": "", "gpa": "" } ],
   "projects": [ { "name": "", "description": "", "technologies": [""] } ],
   "certifications": [""]
-}`
-            },
-            {
-                role: 'user',
-                content: rawText
-            }
-        ],
-        model: 'llama-3.3-70b-versatile',
-        response_format: { type: 'json_object' }
-    });
+}`;
 
-    return JSON.parse(completion.choices[0].message.content);
+    const responseStr = await generateAICompletion(systemPrompt, rawText, true);
+    return JSON.parse(responseStr);
 };
 
 /**

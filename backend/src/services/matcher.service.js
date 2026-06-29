@@ -1,5 +1,6 @@
 const prisma = require('../config/db');
 const groq = require('../config/groq');
+const { generateAICompletion } = require('./ai.service');
 const { getEmbedding, rerankJobs } = require('../utils/embeddings');
 const logger = require('../utils/logger');
 
@@ -36,28 +37,22 @@ const findCandidateJobsByVector = async (profileText) => {
  * @param {Object} job - { id, title, company, description }
  */
 const scoreJobWithAI = async (profileText, job, retryCount = 0) => {
+    const systemPrompt = 'You output only pure JSON.';
     const prompt = `You are an expert technical recruiter. Score how well this candidate fits the job.
 Candidate Profile: ${profileText}
 Job Description: ${job.description}
 Return ONLY a valid JSON object: {"score": <number 1-100>, "reason": "<1 sentence explanation>", "gap_analysis": "<1 sentence explanation>"}`;
 
     try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: 'You output only pure JSON.' },
-                { role: 'user', content: prompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            response_format: { type: 'json_object' }
-        });
-        return JSON.parse(completion.choices[0].message.content);
+        const responseStr = await generateAICompletion(systemPrompt, prompt, true);
+        return JSON.parse(responseStr);
     } catch (err) {
         // If a socket closes due to the long reranker delay, retry once
         if (err.code === 'UND_ERR_SOCKET' && retryCount === 0) {
             logger.warn(`Socket closed on Groq call for job ${job.id}, retrying...`);
             return await scoreJobWithAI(profileText, job, 1);
         }
-        logger.error(`Groq scoring failed for job ${job.id}: ${err.message}`);
+        logger.error(`Groq scoring failed for job ${job.id}: ${err.message || err.status}`);
         return null;
     }
 };
@@ -74,8 +69,8 @@ const saveJobMatch = async ({ userId, jobId, fitScore, reason, gapAnalysis }) =>
             where: {
                 userId_jobId: { userId, jobId }
             },
-            create: { userId, jobId, fitScore, reason, gapAnalysis },
-            update: { fitScore, reason, gapAnalysis }
+            create: { userId, jobId, fitScore, reason: reason || '', gapAnalysis },
+            update: { fitScore, reason: reason || '', gapAnalysis }
         });
     } catch (err) {
         logger.error(`Failed to save/update job match: ${err.message}`);

@@ -8,11 +8,13 @@ const { resumeWorker } = require('../workers/resume.worker');
 const { sendWelcomeEmail, sendMatchAlertEmail } = require('../workers/email.worker');
 const { cleanupStaleJobsWorker } = require('../workers/cleanup.worker');
 const { tailorWorker } = require('../workers/tailor.worker');
+const { submitWorker } = require('../workers/submit.worker');
 
 const router = express.Router();
 
 router.use('/', serve({
   client: inngest,
+  
   functions: [
     scraperWorker, 
     matcherWorker,
@@ -20,7 +22,8 @@ router.use('/', serve({
     sendWelcomeEmail,
     sendMatchAlertEmail,
     cleanupStaleJobsWorker,
-    tailorWorker
+    tailorWorker,
+    submitWorker
   ],
 }));
 

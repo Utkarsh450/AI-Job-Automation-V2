@@ -1,5 +1,6 @@
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const inngest = require('../config/inngest');
 
 const getUserApplications = async (req, res) => {
     try {
@@ -54,7 +55,15 @@ const createApplication = async (req, res) => {
             where: { userId: req.user.id, jobId }
         });
 
-        logger.info(`User ${req.user.id} applied for job ${jobId}`);
+        // 4. Trigger the tailoring and submission pipeline
+        await inngest.send({
+            name: 'app/application.tailor',
+            data: {
+                applicationId: application.id
+            }
+        });
+
+        logger.info(`User ${req.user.id} applied for job ${jobId}, pipeline triggered.`);
         res.status(201).json({ application });
     } catch (error) {
         logger.error(`Error creating application for user ${req.user.id}: ${error.message}`);

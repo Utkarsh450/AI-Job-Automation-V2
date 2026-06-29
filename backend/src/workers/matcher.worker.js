@@ -12,6 +12,7 @@ const matcherWorker = inngest.createFunction(
     {
         id: 'ai-job-matcher',
         name: 'AI Job Matcher',
+        concurrency: 1,
         triggers: [
             { event: 'app/scrape.completed' }, // Re-evaluate all users after new jobs arrive
             { event: 'app/matches.evaluate' }  // Evaluate a specific user after resume parse

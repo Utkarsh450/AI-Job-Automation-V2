@@ -31,9 +31,14 @@ export default function DocumentsSection({ latestResume, uploadMutation }: Props
       const data = await res.json();
       
       if (action === 'preview') {
-        // Cloudinary signed URLs can be opened directly. Since it has fl_attachment, 
-        // some browsers might download it directly anyway, but opening in a new tab is safe.
-        window.open(data.url, '_blank');
+        if (data.url.startsWith('data:')) {
+          const win = window.open();
+          if (win) {
+            win.document.write('<iframe src="' + data.url + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>');
+          }
+        } else {
+          window.open(data.url, '_blank');
+        }
       } else {
         const link = document.createElement('a');
         link.href = data.url;

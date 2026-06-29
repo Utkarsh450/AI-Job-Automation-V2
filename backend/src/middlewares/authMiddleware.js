@@ -4,12 +4,18 @@ const prisma = require('../config/db');
 // 1. Just verifies the Firebase JWT token and attaches the decoded payload
 const verifyFirebaseToken = async (req, res, next) => {
     try {
+        let token;
         const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.split(' ')[1];
+        } else if (req.query.token) {
+            token = req.query.token;
+        }
+
+        if (!token) {
             return res.status(401).json({ error: 'Unauthorized: No token provided' });
         }
 
-        const token = authHeader.split(' ')[1];
         const decodedToken = await auth.verifyIdToken(token);
         
         req.firebaseUser = decodedToken; // Attach just the firebase payload

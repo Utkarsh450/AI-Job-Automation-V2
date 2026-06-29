@@ -1,4 +1,4 @@
-const groq = require('../config/groq');
+const { generateAICompletion } = require('./ai.service');
 const logger = require('../utils/logger');
 
 /**
@@ -38,15 +38,8 @@ ${JSON.stringify(parsedData)}
 Return ONLY a valid JSON object matching the exact structure of the Original Resume JSON.`;
 
     try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: 'You output only pure JSON.' },
-                { role: 'user', content: prompt }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            response_format: { type: 'json_object' }
-        });
-        return JSON.parse(completion.choices[0].message.content);
+        const responseStr = await generateAICompletion('You output only pure JSON.', prompt, true);
+        return JSON.parse(responseStr);
     } catch (err) {
         logger.error(`Resume tailoring failed: ${err.message}`);
         return parsedData; // Fallback to original
@@ -87,18 +80,40 @@ Candidate Profile:
 ${JSON.stringify(parsedData)}`;
 
     try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: 'You are an expert cover letter writer.' },
-                { role: 'user', content: prompt }
-            ],
-            model: 'llama-3.3-70b-versatile'
-        });
-        return completion.choices[0].message.content.trim();
+        const responseStr = await generateAICompletion('You are an expert cover letter writer.', prompt, false);
+        return responseStr.trim();
     } catch (err) {
         logger.error(`Cover letter generation failed: ${err.message}`);
         return null;
     }
 };
 
-module.exports = { tailorResume, generateCoverLetter };
+/**
+ * Generates an answer to a custom form question using Groq (Llama-3).
+ * 
+ * @param {string} question - The custom question from the job application form
+ * @param {Object} resumeJson - The user's parsed resume JSON
+ * @returns {string} The concise generated answer
+ */
+const generateFormAnswer = async (question, resumeJson) => {
+    const prompt = `You are filling out a job application on behalf of a candidate. 
+You must answer the following question as the candidate.
+Keep your answer highly professional, extremely concise (1-2 sentences unless asked for more), and strictly factual based on the resume.
+
+Question from form: "${question}"
+
+Candidate Resume:
+${JSON.stringify(resumeJson, null, 2)}
+
+Output ONLY the answer text that should be typed into the form input box. No markdown, no quotation marks, no preamble.`;
+
+    try {
+        const responseStr = await generateAICompletion('You are an expert at answering job application questions.', prompt, false);
+        return responseStr.trim();
+    } catch (err) {
+        logger.error(`Form answering failed: ${err.message}`);
+        return "Please refer to my resume."; // Fallback
+    }
+};
+
+module.exports = { tailorResume, generateCoverLetter, generateFormAnswer };

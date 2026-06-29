@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../../src/store/useAuthStore';
 import { Search, MapPin, Loader2, ArrowRight, Briefcase, Plus, Link as LinkIcon, ExternalLink, Calendar, Send, Clock, Inbox, ChevronRight, X, BuildingIcon, FileTextIcon, BookmarkIcon, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -25,6 +25,7 @@ const bgColors = [
 export default function DashboardPage() {
   const { user, token, isLoading } = useAuthStore();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('All');
   const [selectedJob, setSelectedJob] = useState<any>(null);
 
@@ -88,25 +89,32 @@ export default function DashboardPage() {
     ...rawApplications.map((app: any) => [app.jobId, app])
   ]).values());
 
+  const [applyingTo, setApplyingTo] = useState<string | null>(null);
+
   const handleApply = async (jobId: string) => {
-    // Temporarily disabled as per request
-    alert('Apply functionality is currently disabled.');
-    
-    // try {
-    //   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //       'Authorization': `Bearer ${token}`
-    //     },
-    //     body: JSON.stringify({ jobId })
-    //   });
-    //   if (res.ok) {
-    //     refetchMatches();
-    //   }
-    // } catch (err) {
-    //   console.error('Failed to apply:', err);
-    // }
+    if (applyingTo === jobId) return;
+    setApplyingTo(jobId);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ jobId })
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        queryClient.invalidateQueries({ queryKey: ['matches'] });
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to apply');
+      }
+    } catch (err) {
+      console.error('Failed to apply:', err);
+    } finally {
+      setApplyingTo(null);
+    }
   };
 
   const handlePass = async (jobId: string) => {
@@ -397,15 +405,20 @@ export default function DashboardPage() {
                                       Ignore
                                     </button>
                                   </>
-                                ) : app.status === 'QUEUED' ? (
+                                ) : app.isMatch ? (
                                   <button 
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleApply(job.id);
                                     }}
-                                    className="px-3 py-1.5 border border-slate-200 dark:border-[#444] bg-white dark:bg-[#1a1a1a] hover:bg-slate-50 dark:hover:bg-[#222] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors shadow-sm"
+                                    disabled={applyingTo === job.id}
+                                    className="px-3 py-1.5 border border-slate-200 dark:border-[#444] bg-white dark:bg-[#1a1a1a] hover:bg-slate-50 dark:hover:bg-[#222] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center min-w-[80px]"
                                   >
-                                    Apply Now
+                                    {applyingTo === job.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Apply Now'}
+                                  </button>
+                                ) : app.status === 'QUEUED' || app.status === 'READY_TO_APPLY' || app.status === 'APPLYING' ? (
+                                  <button disabled className="px-3 py-1.5 border border-transparent bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center min-w-[80px] opacity-70">
+                                    <Loader2 className="w-3 h-3 animate-spin mr-1" /> Processing
                                   </button>
                                 ) : (
                                   <span className="text-slate-400 dark:text-slate-500 text-xs font-medium">-</span>
@@ -482,15 +495,28 @@ export default function DashboardPage() {
                 <a href={selectedJob.url} target="_blank" rel="noreferrer" className="flex items-center text-sm font-bold text-slate-500 hover:text-black dark:hover:text-white transition-colors">
                   <ExternalLink className="w-4 h-4 mr-2" /> View original posting
                 </a>
-                <button 
-                  onClick={() => {
-                    handleApply(selectedJob.id);
-                    setSelectedJob(null);
-                  }}
-                  className="px-8 py-2.5 bg-black dark:bg-white text-white dark:text-black font-bold rounded-full hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-md"
-                >
-                  Apply
-                </button>
+                {(() => {
+                  const appStatus = applications.find((a: any) => a.jobId === selectedJob.id);
+                  const isProcessing = appStatus && !appStatus.isMatch && ['QUEUED', 'READY_TO_APPLY', 'APPLYING'].includes(appStatus.status);
+                  
+                  if (isProcessing) {
+                    return (
+                      <button disabled className="px-8 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold rounded-full flex items-center justify-center min-w-[120px] opacity-70 cursor-not-allowed">
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <button 
+                      onClick={() => handleApply(selectedJob.id)}
+                      disabled={applyingTo === selectedJob.id}
+                      className="px-8 py-2.5 bg-black dark:bg-white text-white dark:text-black font-bold rounded-full hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-md disabled:opacity-50 flex items-center justify-center min-w-[120px]"
+                    >
+                      {applyingTo === selectedJob.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                    </button>
+                  );
+                })()}
               </div>
             </>
           )}

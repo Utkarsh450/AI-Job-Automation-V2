@@ -7,7 +7,7 @@ import { Loader2, Settings2, Lock, CreditCard, Users, Mail, UserCircle, FileText
 import { useTheme } from "next-themes";
 
 export default function SettingsPage() {
-  const { user, isLoading, logout } = useAuthStore();
+  const { user, token, isLoading, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('Apply settings');
   const [showPassword, setShowPassword] = useState(false);
@@ -266,6 +266,21 @@ export default function SettingsPage() {
                 >
                   {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 </button>
+              </div>
+
+              <div className="bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-xl p-6 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow duration-300">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center">
+                    <Mail className="w-4 h-4 mr-2 text-blue-500" /> Connect Gmail
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Allow Tsenta to automatically read OTP codes for Greenhouse applications.</p>
+                </div>
+                <a 
+                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/google/connect?token=${token}`}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                >
+                  Connect
+                </a>
               </div>
 
               <div className="bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-xl p-6 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow duration-300">

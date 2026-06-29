@@ -196,11 +196,19 @@ export default function OnboardingWizard() {
     gender: ''
   });
 
-  // Step 4: Application Passwords
+  // Step 4: Demographics
+  const [demographics, setDemographics] = useState({
+    gender: 'Decline', // Male, Female, Non-binary, Decline
+    race: 'Decline', // Asian, Black, Hispanic, White, Other, Decline
+    veteranStatus: 'I am not a protected veteran', // I am not a protected veteran, I am a protected veteran, Decline
+    disabilityStatus: 'No' // No, Yes, Decline
+  });
+
+  // Step 5: Application Passwords
   const [appPasswords, setAppPasswords] = useState([{ domain: 'workday', password: '' }]);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Step 5: Optimization
+  // Step 6: Optimization
   const [resumeOptimization, setResumeOptimization] = useState('Honest');
   const [coverLetterOpt, setCoverLetterOpt] = useState('Honest');
   const [autoApprove, setAutoApprove] = useState(true);
@@ -293,7 +301,10 @@ export default function OnboardingWizard() {
             needAccommodations: preferences.needAccommodations,
             activeClearance: preferences.activeClearance,
             foreignTies: preferences.foreignTies,
-            gender: preferences.gender
+            gender: demographics.gender,
+            race: demographics.race,
+            veteranStatus: demographics.veteranStatus,
+            disabilityStatus: demographics.disabilityStatus
         },
         appPasswords: appPasswords.filter(a => a.password).map(a => ({ domain: a.domain, password: a.password })),
         resumeOptimization,
@@ -333,7 +344,7 @@ export default function OnboardingWizard() {
       )}
       
       {step === 1 && (
-        <MasterLayout stepNumber={1} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+        <MasterLayout stepNumber={1} totalSteps={6} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
           <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Location</h3>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">Where do you live?</h1>
           <p className="text-slate-500 mb-10 text-sm">Most job sites need a full address. We'll fill it in automatically from here.</p>
@@ -372,7 +383,7 @@ export default function OnboardingWizard() {
       )}
 
       {step === 2 && (
-        <MasterLayout stepNumber={2} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+        <MasterLayout stepNumber={2} totalSteps={6} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
           <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Work Eligibility</h3>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">What's your work status?</h1>
           <p className="text-slate-500 mb-10 text-sm">We use this to filter out jobs you can't apply to. Pick the closest one.</p>
@@ -409,7 +420,7 @@ export default function OnboardingWizard() {
       )}
 
       {step === 3 && (
-        <MasterLayout stepNumber={3} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+        <MasterLayout stepNumber={3} totalSteps={6} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
           <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Quick Checklist</h3>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">A few last questions.</h1>
           <p className="text-slate-500 mb-8 text-sm">Tap through. Defaults work for most people — only change what applies.</p>
@@ -462,7 +473,76 @@ export default function OnboardingWizard() {
       )}
 
       {step === 4 && (
-        <MasterLayout stepNumber={4} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+        <MasterLayout stepNumber={4} totalSteps={6} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+          <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Demographics</h3>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">Self-Identification</h1>
+          <p className="text-slate-500 mb-8 text-sm">Most companies ask for these. We'll fill them automatically to save you time.</p>
+
+          <div className="space-y-6">
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-3">Gender</label>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {['Male', 'Female', 'Non-binary', 'Decline'].map(opt => (
+                  <button 
+                    key={opt} onClick={() => setDemographics({...demographics, gender: opt})}
+                    className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${demographics.gender === opt ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 dark:border-[#333] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#444] bg-white dark:bg-[#222]'}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-3">Race / Ethnicity</label>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {['Asian', 'Black', 'Hispanic', 'White', 'Other', 'Decline'].map(opt => (
+                  <button 
+                    key={opt} onClick={() => setDemographics({...demographics, race: opt})}
+                    className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${demographics.race === opt ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 dark:border-[#333] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#444] bg-white dark:bg-[#222]'}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-3">Veteran Status</label>
+              <div className="flex flex-col gap-3">
+                {['I am not a protected veteran', 'I am a protected veteran', 'Decline'].map(opt => (
+                  <button 
+                    key={opt} onClick={() => setDemographics({...demographics, veteranStatus: opt})}
+                    className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all text-left flex items-center ${demographics.veteranStatus === opt ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 dark:border-[#333] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#444] bg-white dark:bg-[#222]'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${demographics.veteranStatus === opt ? 'border-blue-600 dark:border-blue-400' : 'border-slate-300 dark:border-[#555]'}`}>
+                      {demographics.veteranStatus === opt && <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400" />}
+                    </div>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold tracking-wider text-slate-400 uppercase block mb-3">Disability Status</label>
+              <div className="flex bg-slate-100 dark:bg-[#222] rounded-xl p-1.5 w-full sm:w-fit">
+                {['No', 'Yes', 'Decline'].map(opt => (
+                  <button 
+                    key={opt} onClick={() => setDemographics({...demographics, disabilityStatus: opt})}
+                    className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${demographics.disabilityStatus === opt ? 'bg-white dark:bg-[#333] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </MasterLayout>
+      )}
+
+      {step === 5 && (
+        <MasterLayout stepNumber={5} totalSteps={6} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
           <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Application Password</h3>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">Set a password for sites that ask</h1>
           <p className="text-slate-500 mb-8 text-sm max-w-md">Some applications (Workday, iCIMS, Oracle) require you to create an account mid-flow. We use this to sign you up automatically.</p>
@@ -530,8 +610,8 @@ export default function OnboardingWizard() {
         </MasterLayout>
       )}
 
-      {step === 5 && (
-        <MasterLayout stepNumber={5} totalSteps={5} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
+      {step === 6 && (
+        <MasterLayout stepNumber={6} totalSteps={6} step={step} setStep={setStep} isResumeParsed={isResumeParsed} handleFinalSubmit={handleFinalSubmit}>
           <h3 className="text-xs font-bold tracking-wider text-slate-400 mb-2 uppercase">Application Settings</h3>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">How should we apply?</h1>
           <p className="text-slate-500 mb-8 text-sm">You can change these anytime from settings.</p>

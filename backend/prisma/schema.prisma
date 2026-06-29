@@ -20,6 +20,11 @@ model User {
   githubUrl          String?
   portfolioUrl       String?
   isOnboarded        Boolean  @default(false)
+  
+  // Google OAuth for Gmail API
+  googleRefreshToken String?  @db.Text
+  googleAccessToken  String?  @db.Text
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

@@ -84,13 +84,14 @@ const tailorWorker = inngest.createFunction(
             });
         });
 
-        // Trigger next phase (Auto-Applier bot) if autoApprove is true
-        if (prefs?.autoApprove) {
-            await step.sendEvent('Trigger Bot Submitter', {
-                name: 'app/application.submit',
-                data: { applicationId }
-            });
-        }
+        // Trigger next phase (Auto-Applier bot) unconditionally until we add a UI toggle
+        await step.sendEvent('Trigger Bot Submitter', {
+            name: 'app/application.submit',
+            data: { 
+                applicationId: applicationId,
+                userId: application.userId
+            }
+        });
 
         return { success: true, applicationId };
     }

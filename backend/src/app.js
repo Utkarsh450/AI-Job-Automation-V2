@@ -12,7 +12,8 @@ const app = express();
 
 // Middlewares
 app.use(cors()); // Allows our frontend to talk to our backend without security errors
-app.use(express.json()); // Allows our backend to understand JSON data sent from the frontend
+app.use(express.json({ limit: '50mb' })); // Allows large payloads (e.g. Inngest step states with PDF base64)
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // A simple test route to check if the server is alive
 app.get('/health', (req, res) => {

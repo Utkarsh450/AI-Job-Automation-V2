@@ -4,7 +4,7 @@ import { useState, useEffect, Fragment } from 'react';
 import useAuthStore from '../../../src/store/useAuthStore';
 import { Search, MapPin, BuildingIcon, Briefcase, ExternalLink, X, Loader2, Plus, BookmarkIcon, FileTextIcon } from 'lucide-react';
 import JobCard from '../../../components/JobCard';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '../../../src/hooks/useDebounce';
 import { useIntersectionObserver } from '../../../src/hooks/useIntersectionObserver';
 
@@ -57,6 +57,36 @@ export default function BrowseJobsPage() {
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
     enabled: !!token
   });
+
+  const queryClient = useQueryClient();
+  const [applyingTo, setApplyingTo] = useState<string | null>(null);
+
+  const handleApply = async (jobId: string) => {
+    if (applyingTo === jobId) return;
+    setApplyingTo(jobId);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ jobId })
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        queryClient.invalidateQueries({ queryKey: ['matches'] });
+        alert('Application triggered successfully!');
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to apply');
+      }
+    } catch (err) {
+      console.error('Failed to apply:', err);
+    } finally {
+      setApplyingTo(null);
+    }
+  };
 
   const { targetRef, isIntersecting } = useIntersectionObserver({
     threshold: 0.1,
@@ -178,11 +208,16 @@ export default function BrowseJobsPage() {
             </div>
             
             <button 
-              onClick={() => alert('Apply functionality is currently disabled.')}
-              className="w-full py-3 bg-black text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
+              onClick={() => handleApply(selectedJob.id)}
+              disabled={applyingTo === selectedJob.id}
+              className="w-full py-3 bg-black text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm disabled:opacity-50"
             >
-              <Briefcase className="w-4 h-4 mr-2" />
-              Apply via Tsenta
+              {applyingTo === selectedJob.id ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Briefcase className="w-4 h-4 mr-2" />
+              )}
+              {applyingTo === selectedJob.id ? 'Starting Application...' : 'Apply via Tsenta'}
             </button>
           </div>
           

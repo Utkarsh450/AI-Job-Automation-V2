@@ -126,6 +126,14 @@ const downloadResume = async (req, res) => {
             return res.status(403).json({ error: "Not authorized to download this resume" });
         }
 
+        // If this is an AI-generated resume (no s3Url or placeholder), generate it on the fly!
+        if (!resume.s3Url || resume.s3Url === 'generated-by-ai') {
+            const { generatePdfFromResume } = require('../services/pdf.service');
+            const pdfBuffer = await generatePdfFromResume(resume.parsedData);
+            const dataUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+            return res.status(200).json({ url: dataUrl });
+        }
+
         // Parse public_id from Cloudinary URL
         // e.g., https://res.cloudinary.com/.../image/upload/v12345/resumes/resume_1234.pdf
         const urlObj = new URL(resume.s3Url);
