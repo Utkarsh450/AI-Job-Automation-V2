@@ -144,7 +144,7 @@ const generatePdfFromResume = async (resumeJson) => {
     const htmlContent = generateHTML(resumeJson);
     
     // Launch headless chromium
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true, slowMo: 100 });
     const page = await browser.newPage();
     
     // Set HTML content

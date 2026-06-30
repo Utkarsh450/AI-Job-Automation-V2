@@ -41,15 +41,21 @@ const getGmailClient = async (userId) => {
 const fetchGreenhouseOtp = async (userId) => {
     try {
         const gmail = await getGmailClient(userId);
+        console.log("gmail", gmail);
+        
         if (!gmail) return null;
 
         const res = await gmail.users.messages.list({
             userId: 'me',
             q: 'newer_than:10m (greenhouse OR verification)',
-            maxResults: 5
+            maxResults: 10
         });
+        console.log("response", res);
+        
 
         const messages = res.data.messages;
+        console.log("messages", messages);
+        
         if (!messages || messages.length === 0) {
             logger.info('No OTP emails found with query.');
             return null;
@@ -64,7 +70,6 @@ const fetchGreenhouseOtp = async (userId) => {
                 format: 'full'
             });
 
-            let bodyData = '';
             const payload = email.data.payload;
 
             // Extract Subject for logging
@@ -72,29 +77,54 @@ const fetchGreenhouseOtp = async (userId) => {
             const subject = subjectHeader ? subjectHeader.value : 'No Subject';
             logger.info(`Checking email with subject: "${subject}"`);
 
-            if (payload.parts) {
-                for (const part of payload.parts) {
-                    if (part.mimeType === 'text/plain' && part.body && part.body.data) {
-                        bodyData = Buffer.from(part.body.data, 'base64').toString('utf8');
-                        break;
-                    } else if (part.mimeType === 'text/html' && part.body && part.body.data) {
-                        bodyData = Buffer.from(part.body.data, 'base64').toString('utf8');
+            const extractBody = (part) => {
+                if (part.mimeType === 'text/plain' && part.body && part.body.data) {
+                    return Buffer.from(part.body.data, 'base64url').toString('utf8');
+                }
+                if (part.mimeType === 'text/html' && part.body && part.body.data) {
+                    return Buffer.from(part.body.data, 'base64url').toString('utf8');
+                }
+                if (part.parts) {
+                    for (const subPart of part.parts) {
+                        const body = extractBody(subPart);
+                        if (body) return body;
                     }
                 }
-            } else if (payload.body && payload.body.data) {
-                bodyData = Buffer.from(payload.body.data, 'base64').toString('utf8');
-            }
+                if (part.body && part.body.data) {
+                    return Buffer.from(part.body.data, 'base64url').toString('utf8');
+                }
+                return '';
+            };
+
+            const bodyData = extractBody(payload);
 
             // Strip basic HTML tags before regex matching
-            const plainText = bodyData.replace(/<[^>]+>/g, ' ');
-
-            const match = plainText.match(/\b\d{6}\b/);
-            if (match) {
-                logger.info(`Extracted OTP: ${match[0]}`);
-                return match[0];
-            } else {
-                logger.warn(`No 6-digit code found in email body. Body preview: ${plainText.substring(0, 100).replace(/\n/g, ' ')}...`);
+            const plainText = bodyData.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+            console.log("plaintext", plainText.substring(0, 500));
+            
+            // Greenhouse codes can be 6-digit numbers OR alphanumeric codes (like UF8X9Z or ZbxD6nKS)
+            // Strategy 1: Match directly after known phrases
+            const contextMatch = plainText.match(/(?:application:|code is:?|code:)\s*([A-Za-z0-9]{6,10})\b/i);
+            if (contextMatch) {
+                logger.info(`Extracted OTP (Context Match): ${contextMatch[1]}`);
+                return contextMatch[1];
             }
+
+            // Strategy 2: 6 to 8 digits
+            const match = plainText.match(/\b\d{6,8}\b/);
+            if (match) {
+                logger.info(`Extracted OTP (Digit Match): ${match[0]}`);
+                return match[0];
+            }
+            
+            // Strategy 3: 6 to 8 character alphanumeric word
+            const alphaNumMatch = plainText.match(/\b[A-Za-z0-9]{6,8}\b/);
+            if (alphaNumMatch && /[A-Z]/i.test(alphaNumMatch[0]) && /[0-9]/.test(alphaNumMatch[0])) {
+                logger.info(`Extracted OTP (AlphaNum Match): ${alphaNumMatch[0]}`);
+                return alphaNumMatch[0];
+            }
+
+            logger.warn(`No valid code found in email body. Body preview: ${plainText.substring(0, 150)}...`);
         }
 
         return null;
