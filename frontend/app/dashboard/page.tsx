@@ -253,16 +253,6 @@ export default function DashboardPage() {
             {/* Top row: Title and Actions */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-none">All applications</h2>
-              
-              <div className="flex space-x-3 w-full sm:w-auto">
-                <button className="flex-1 sm:flex-none flex justify-center items-center space-x-2 px-4 py-2 border border-slate-200 dark:border-[#444] rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-[#2a2a2a] transition-colors">
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Open tracker</span>
-                </button>
-                <button className="flex-1 sm:flex-none justify-center px-4 py-2 border border-slate-200 dark:border-[#444] rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-[#2a2a2a] transition-colors">
-                  Approve all
-                </button>
-              </div>
             </div>
 
             {/* Bottom row: Tabs */}

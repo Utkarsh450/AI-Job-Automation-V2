@@ -80,11 +80,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Logo */}
         <div className={`mb-8 flex items-center cursor-pointer px-4 ${isExpanded ? 'justify-start' : 'justify-center'}`} onClick={() => setIsExpanded(!isExpanded)}>
-          <div className="w-8 h-8 shrink-0 bg-blue-600 dark:bg-slate-800 rounded-lg flex items-center justify-center transform hover:scale-105 transition-transform shadow-sm">
-            <Rocket className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-xl shrink-0 transform hover:scale-105 transition-transform shadow-sm">
+            T
           </div>
           {isExpanded && (
-            <span className="ml-3 text-slate-900 dark:text-white font-bold text-lg whitespace-nowrap">Jobr</span>
+            <span className="ml-3 text-slate-900 dark:text-white font-bold text-lg whitespace-nowrap">Tsenta</span>
           )}
         </div>
 
