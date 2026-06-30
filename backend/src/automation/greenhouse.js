@@ -223,11 +223,24 @@ const applyToGreenhouse = async (jobUrl, userInfo, resumeBuffer, tailoredResume,
             if (!lowerLabel || lowerLabel.includes('first name') || lowerLabel.includes('last name') || lowerLabel.includes('email') || lowerLabel.includes('phone') || lowerLabel.includes('location')) continue;
 
             if (lowerLabel.includes('linkedin') && userInfo.linkedin && userInfo.linkedin.toLowerCase() !== 'linkedin') {
-                const url = userInfo.linkedin.startsWith('http') ? userInfo.linkedin : `https://${userInfo.linkedin}`;
+                const ln = userInfo.linkedin;
+                const url = ln.startsWith('http') ? ln : `https://${ln}`;
                 if (url.includes('.')) await input.fill(url);
-            } else if ((lowerLabel.includes('github') || lowerLabel.includes('portfolio') || lowerLabel.includes('website')) && userInfo.github && userInfo.github.toLowerCase() !== 'github') {
-                const url = userInfo.github.startsWith('http') ? userInfo.github : `https://${userInfo.github}`;
+            } else if (lowerLabel.includes('github') && userInfo.github && userInfo.github.toLowerCase() !== 'github') {
+                const gh = userInfo.github;
+                const url = gh.startsWith('http') ? gh : `https://${gh}`;
                 if (url.includes('.')) await input.fill(url);
+            } else if ((lowerLabel.includes('portfolio') || lowerLabel.includes('website')) && (userInfo.portfolio || userInfo.github || userInfo.linkedin)) {
+                const pf = userInfo.portfolio || userInfo.github || userInfo.linkedin;
+                if (pf && pf.toLowerCase() !== 'portfolio' && pf.toLowerCase() !== 'website' && pf.toLowerCase() !== 'github' && pf.toLowerCase() !== 'linkedin') {
+                    const url = pf.startsWith('http') ? pf : `https://${pf}`;
+                    if (url.includes('.')) await input.fill(url);
+                }
+            } else if ((lowerLabel.includes('school') || lowerLabel.includes('university') || lowerLabel.includes('college') || lowerLabel.includes('education')) && (userInfo.preferences?.university || (userInfo.education && userInfo.education.length > 0))) {
+                const uni = userInfo.preferences?.university || (userInfo.education && userInfo.education.length > 0 ? userInfo.education[0].institution : '');
+                if (uni) {
+                    await input.fill(uni);
+                }
             } else if ((lowerLabel.includes('salary') || lowerLabel.includes('compensation') || lowerLabel.includes('pay')) && userInfo.preferences?.targetSalary) {
                 await input.fill(userInfo.preferences.targetSalary.toString());
             } else if (lowerLabel.includes('where do you intend to work') || lowerLabel.includes('city and state')) {

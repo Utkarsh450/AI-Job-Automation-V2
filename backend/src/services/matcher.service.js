@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 
 const VECTOR_CANDIDATE_LIMIT = 200;
 const RERANK_TOP_N = 20;
-const HIGH_SCORE_THRESHOLD = 80;
+const HIGH_SCORE_THRESHOLD = 40;
 
 /**
  * Generates an embedding for a resume's parsed data and runs a

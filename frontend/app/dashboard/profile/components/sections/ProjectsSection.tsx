@@ -74,3 +74,4 @@ export default function ProjectsSection({ parsedData, setEditingSection }: Props
     </section>
   );
 }
+

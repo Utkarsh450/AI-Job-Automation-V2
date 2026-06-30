@@ -81,3 +81,4 @@ export default function ApplicationDefaultsSection({ profile, setEditingSection 
     </section>
   );
 }
+

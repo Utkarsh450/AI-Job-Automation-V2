@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import useAuthStore from '../../../src/store/useAuthStore';
 import { Search, MailX, ArrowRight, Loader2, Maximize2 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export default function InboxPage() {
   const { user, token, isLoading } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('All');
   const [selectedEmail, setSelectedEmail] = useState<any>(null);
+  const queryClient = useQueryClient();
 
   const { data: emails = [], isLoading: isLoadingEmails } = useQuery({
     queryKey: ['emails', token],
@@ -21,7 +21,31 @@ export default function InboxPage() {
       return data.emails || [];
     },
     enabled: !!token,
+    refetchInterval: 30000, // Auto-refresh every 30s to pick up new emails
   });
+
+  const handleSelectEmail = async (email: any) => {
+    setSelectedEmail(email);
+    // If unread, mark as read
+    if (!email.isRead) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/emails/${email.id}/read`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        // Update local cache so badge disappears immediately
+        queryClient.setQueryData(['emails', token], (old: any[]) =>
+          old?.map(e => e.id === email.id ? { ...e, isRead: true } : e)
+        );
+        // Also invalidate dbUser to refresh the sidebar badge
+        queryClient.invalidateQueries({ queryKey: ['dbUser'] });
+      } catch (e) {
+        // Silent fail — email still shows
+      }
+    }
+  };
+
+  const unreadCount = emails.filter((e: any) => !e.isRead).length;
 
   if (isLoading || !user) {
     return <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#1a1a1a]"><Loader2 className="w-8 h-8 animate-spin text-slate-500" /></div>;
@@ -32,7 +56,14 @@ export default function InboxPage() {
       
       {/* Top Header */}
       <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-[#2a2a2a] shrink-0">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Inbox</h1>
+        <div className="flex items-center space-x-3">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Inbox</h1>
+          {unreadCount > 0 && (
+            <span className="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+              {unreadCount} unread
+            </span>
+          )}
+        </div>
         
         <div className="flex items-center space-x-4">
           <div className="relative w-64">
@@ -64,7 +95,7 @@ export default function InboxPage() {
 
       {/* Info Banner */}
       <div className="px-6 py-3 border-b border-slate-200 dark:border-[#2a2a2a] text-xs text-slate-500 dark:text-slate-400 shrink-0">
-        <strong className="text-slate-900 dark:text-slate-300 font-medium">utkarsh.barnwal@my-privateemail.com</strong> forwards to <strong className="text-slate-900 dark:text-slate-300 font-medium">{user.email}</strong> · Auto-fill OTPs automatically. Your connected mail doesn't appear here.
+        <strong className="text-slate-900 dark:text-slate-300 font-medium">utkarsh.barnwal@my-privateemail.com</strong> forwards to <strong className="text-slate-900 dark:text-slate-300 font-medium">{user.email}</strong> · Auto-fill OTPs automatically. Your connected mail doesn&apos;t appear here.
       </div>
 
       {/* Split Pane Area */}
@@ -87,7 +118,7 @@ export default function InboxPage() {
               {emails.map((email: any) => (
                 <div 
                   key={email.id} 
-                  onClick={() => setSelectedEmail(email)}
+                  onClick={() => handleSelectEmail(email)}
                   className={`p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#222] transition-colors ${selectedEmail?.id === email.id ? 'bg-white dark:bg-[#222] border-l-4 border-blue-500' : 'border-l-4 border-transparent'}`}
                 >
                   <div className="flex justify-between items-baseline mb-1">
@@ -101,8 +132,13 @@ export default function InboxPage() {
                   <div className={`text-xs mb-1 truncate ${!email.isRead ? 'font-bold text-slate-800 dark:text-slate-200' : 'text-slate-600 dark:text-slate-400'}`}>
                     {email.subject}
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-500 truncate">
-                    {email.bodyText.substring(0, 60)}...
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-slate-500 dark:text-slate-500 truncate flex-1">
+                      {email.bodyText?.substring(0, 60)}...
+                    </div>
+                    {!email.isRead && (
+                      <span className="ml-2 w-2 h-2 bg-blue-500 rounded-full shrink-0"></span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -139,7 +175,7 @@ export default function InboxPage() {
               <div className="p-6 flex-1 overflow-y-auto">
                 <div 
                   className="prose dark:prose-invert prose-sm max-w-none prose-p:text-slate-700 dark:prose-p:text-slate-300"
-                  dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml || selectedEmail.bodyText.replace(/\n/g, '<br/>') }}
+                  dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml || selectedEmail.bodyText?.replace(/\n/g, '<br/>') }}
                 />
               </div>
             </div>
@@ -151,3 +187,4 @@ export default function InboxPage() {
     </div>
   );
 }
+

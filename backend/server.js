@@ -1,4 +1,4 @@
-require('dotenv').config(); // Loads variables from your .env file
+require('dotenv').config(); // Loads variables from your .env file - restart trigger
 const app = require('./src/app');
 const logger = require('./src/utils/logger');
 require('./src/config/db'); // This imports and connects the database

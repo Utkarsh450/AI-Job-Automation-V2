@@ -83,8 +83,10 @@ const submitWorker = inngest.createFunction(
             email: appData.user.email || tailoredResume.personal_info?.email,
             phone: tailoredResume.personal_info?.phone || appData.user.phone || '+12345678901',
             location: tailoredResume.personal_info?.location || appData.user.location,
-            linkedin: tailoredResume.personal_info?.linkedin || appData.user.linkedinUrl,
-            github: tailoredResume.personal_info?.github || appData.user.githubUrl,
+            linkedin: appData.user.linkedinUrl || tailoredResume.personal_info?.linkedin,
+            github: appData.user.githubUrl || tailoredResume.personal_info?.github,
+            portfolio: appData.user.portfolioUrl || tailoredResume.personal_info?.portfolio,
+            education: tailoredResume.education || [],
             demographics: {
                 gender: appData.user.preferences?.gender || 'Decline',
                 race: appData.user.preferences?.race || 'Decline',

@@ -83,3 +83,4 @@ export default function SkillsSection({ parsedData, setEditingSection }: Props) 
     </section>
   );
 }
+

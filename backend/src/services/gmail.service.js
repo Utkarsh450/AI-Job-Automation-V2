@@ -45,14 +45,17 @@ const fetchGreenhouseOtp = async (userId) => {
 
         const res = await gmail.users.messages.list({
             userId: 'me',
-            q: 'newer_than:1h verification code',
+            q: 'newer_than:10m (greenhouse OR verification)',
             maxResults: 5
         });
 
         const messages = res.data.messages;
         if (!messages || messages.length === 0) {
+            logger.info('No OTP emails found with query.');
             return null;
         }
+
+        logger.info(`Found ${messages.length} potential OTP emails.`);
 
         for (const msg of messages) {
             const email = await gmail.users.messages.get({
@@ -63,6 +66,11 @@ const fetchGreenhouseOtp = async (userId) => {
 
             let bodyData = '';
             const payload = email.data.payload;
+
+            // Extract Subject for logging
+            const subjectHeader = payload.headers?.find(h => h.name.toLowerCase() === 'subject');
+            const subject = subjectHeader ? subjectHeader.value : 'No Subject';
+            logger.info(`Checking email with subject: "${subject}"`);
 
             if (payload.parts) {
                 for (const part of payload.parts) {
@@ -77,9 +85,15 @@ const fetchGreenhouseOtp = async (userId) => {
                 bodyData = Buffer.from(payload.body.data, 'base64').toString('utf8');
             }
 
-            const match = bodyData.match(/\b\d{6}\b/);
+            // Strip basic HTML tags before regex matching
+            const plainText = bodyData.replace(/<[^>]+>/g, ' ');
+
+            const match = plainText.match(/\b\d{6}\b/);
             if (match) {
+                logger.info(`Extracted OTP: ${match[0]}`);
                 return match[0];
+            } else {
+                logger.warn(`No 6-digit code found in email body. Body preview: ${plainText.substring(0, 100).replace(/\n/g, ' ')}...`);
             }
         }
 

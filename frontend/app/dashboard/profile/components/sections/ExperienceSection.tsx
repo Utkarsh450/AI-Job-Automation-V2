@@ -71,3 +71,4 @@ export default function ExperienceSection({ parsedData, setEditingSection }: Pro
     </section>
   );
 }
+

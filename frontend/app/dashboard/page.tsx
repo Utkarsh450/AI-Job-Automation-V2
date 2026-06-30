@@ -39,7 +39,7 @@ export default function DashboardPage() {
   const { data: jobs = [], isLoading: isLoadingJobs } = useQuery({
     queryKey: ['jobs', token],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/jobs`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/jobs`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch jobs');
@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const { data: rawApplications = [], isLoading: isLoadingApps } = useQuery({
     queryKey: ['applications', token],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/applications`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch');
@@ -69,7 +69,7 @@ export default function DashboardPage() {
   const { data: jobMatches = [], isLoading: isLoadingMatches, refetch: refetchMatches } = useQuery({
     queryKey: ['jobMatches', token],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/job-matches`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/job-matches`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch matches');
@@ -80,22 +80,24 @@ export default function DashboardPage() {
     refetchInterval: 5000,
   });
 
-  const applications = Array.from(new Map([
-    ...jobMatches.map((match: any) => [match.jobId, {
-      ...match,
-      status: 'QUEUED',
-      isMatch: true
-    }]),
-    ...rawApplications.map((app: any) => [app.jobId, app])
-  ]).values());
+  const appsMap = new Map();
+  jobMatches.forEach((match: any) => {
+    appsMap.set(match.jobId, { ...match, status: 'QUEUED', isMatch: true });
+  });
+  rawApplications.forEach((app: any) => {
+    const existing = appsMap.get(app.jobId) || {};
+    appsMap.set(app.jobId, { ...existing, ...app });
+  });
+  const applications = Array.from(appsMap.values());
 
   const [applyingTo, setApplyingTo] = useState<string | null>(null);
+  const [passingJob, setPassingJob] = useState<string | null>(null);
 
   const handleApply = async (jobId: string) => {
     if (applyingTo === jobId) return;
     setApplyingTo(jobId);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/applications`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/applications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,8 +120,10 @@ export default function DashboardPage() {
   };
 
   const handlePass = async (jobId: string) => {
+    if (passingJob === jobId) return;
+    setPassingJob(jobId);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/job-matches/${jobId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/job-matches/${jobId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -130,6 +134,8 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Failed to pass job:', err);
+    } finally {
+      setPassingJob(null);
     }
   };
 
@@ -137,8 +143,8 @@ export default function DashboardPage() {
     return <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#1a1a1a]"><Loader2 className="w-8 h-8 animate-spin text-slate-500" /></div>;
   }
 
-  // Top matches are AI evaluated JobMatches sorted by fitScore
-  const topMatches = jobMatches.slice(0, 5);
+  // Top matches are AI evaluated JobMatches sorted by fitScore > 60
+  const topMatches = jobMatches.filter((m: any) => m.fitScore > 60).slice(0, 5);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#1a1a1a] text-slate-900 dark:text-slate-200 overflow-x-hidden relative">
@@ -250,7 +256,9 @@ export default function DashboardPage() {
                     isMatch={true} 
                     fitScore={fitScore}
                     onApply={() => handleApply(job.id)}
-                    onPass={() => handlePass(job.id)} 
+                    onPass={() => handlePass(job.id)}
+                    isApplying={applyingTo === job.id}
+                    isPassing={passingJob === job.id}
                   />
                 );
               })
@@ -326,6 +334,7 @@ export default function DashboardPage() {
                     <thead className="text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200 dark:border-[#333] bg-slate-50 dark:bg-transparent">
                       <tr>
                         <th className="px-6 py-4 font-bold">Position</th>
+                        <th className="px-6 py-4 font-bold">Score</th>
                         <th className="px-6 py-4 font-bold">Resume</th>
                         <th className="px-6 py-4 font-bold">Cover Letter</th>
                         <th className="px-6 py-4 font-bold">Status</th>
@@ -375,6 +384,11 @@ export default function DashboardPage() {
                                   <span className="text-xs text-slate-500">{job.company}</span>
                                 </div>
                               </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`text-xs font-bold ${app.fitScore > 60 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                {app.fitScore ? `${app.fitScore}%` : 'N/A'}
+                              </span>
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-slate-900 dark:text-slate-200 text-xs font-medium">{resumeStatus}</span>
@@ -535,3 +549,4 @@ function CheckCircleIcon(props: any) {
     </svg>
   );
 }
+

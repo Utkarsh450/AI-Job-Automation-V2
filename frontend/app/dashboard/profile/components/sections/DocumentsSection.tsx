@@ -22,7 +22,7 @@ export default function DocumentsSection({ latestResume, uploadMutation }: Props
     
     try {
       setIsFetchingPdf(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resume/${latestResume.id}/download`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resume/${latestResume.id}/download`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -104,3 +104,4 @@ export default function DocumentsSection({ latestResume, uploadMutation }: Props
     </section>
   );
 }
+

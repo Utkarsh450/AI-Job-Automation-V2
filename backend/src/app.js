@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth.route');
 const resumeRoutes = require('./routes/resume.route');
 const inngestRoutes = require('./routes/inngest.route');
 const applicationRoutes = require('./routes/application.route');
+const jobMatchRoutes = require('./routes/jobMatch.route');
 
 const app = express();
 
@@ -28,5 +29,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/resumes', resumeRoutes);
 app.use('/api/inngest', inngestRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/job-matches', jobMatchRoutes);
 
 module.exports = app; 

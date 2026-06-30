@@ -35,12 +35,20 @@ const getJobs = async (req, res) => {
         const { cursor, limit = 20, search } = req.query;
         const take = parseInt(limit) + 1;
 
-        const where = search ? {
-            OR: [
-                { title: { contains: search, mode: 'insensitive' } },
-                { company: { contains: search, mode: 'insensitive' } }
-            ]
-        } : {};
+        const where = {
+            ...(search ? {
+                OR: [
+                    { title: { contains: search, mode: 'insensitive' } },
+                    { company: { contains: search, mode: 'insensitive' } }
+                ]
+            } : {}),
+            // Exclude jobs this user has ignored
+            NOT: {
+                ignoredBy: {
+                    some: { userId: req.user?.id }
+                }
+            }
+        };
 
         const jobs = await prisma.job.findMany({
             where,
@@ -65,7 +73,28 @@ const getJobs = async (req, res) => {
     }
 };
 
+// Ignore (pass on) a job
+const ignoreJob = async (req, res) => {
+    try {
+        const { id: jobId } = req.params;
+        const userId = req.user.id;
+
+        await prisma.ignoredJob.upsert({
+            where: { userId_jobId: { userId, jobId } },
+            update: {},
+            create: { userId, jobId }
+        });
+
+        logger.info(`User ${userId} ignored job ${jobId}`);
+        res.status(200).json({ success: true });
+    } catch (error) {
+        logger.error(`Error ignoring job: ${error.message}`);
+        res.status(500).json({ error: 'Failed to ignore job' });
+    }
+};
+
 module.exports = {
     createJob,
-    getJobs
+    getJobs,
+    ignoreJob
 };

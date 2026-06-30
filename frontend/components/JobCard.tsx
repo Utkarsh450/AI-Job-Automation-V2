@@ -1,4 +1,4 @@
-import { Briefcase, Sparkles } from 'lucide-react';
+import { Briefcase, Sparkles, Loader2 } from 'lucide-react';
 
 const bgColors = [
   'bg-[#e0f2fe] dark:bg-[#1e1e1e]', // light blue
@@ -16,7 +16,9 @@ export default function JobCard({
   isMatch = false, 
   fitScore = 0,
   onApply,
-  onPass
+  onPass,
+  isApplying = false,
+  isPassing = false
 }: { 
   job: any; 
   index: number; 
@@ -26,6 +28,8 @@ export default function JobCard({
   fitScore?: number;
   onApply?: () => void;
   onPass?: () => void;
+  isApplying?: boolean;
+  isPassing?: boolean;
 }) {
   const containerClasses = [
     "bg-white dark:bg-[#1a1a1a] p-1.5 rounded-3xl border border-slate-200 dark:border-[#333] hover:border-slate-300 dark:hover:border-[#555] shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col h-[280px]",
@@ -96,15 +100,17 @@ export default function JobCard({
         <div className="flex space-x-1.5 shrink-0">
           <button 
             onClick={(e) => { e.stopPropagation(); onPass?.(); }}
-            className="px-4 py-1.5 border border-slate-200 dark:border-[#444] bg-slate-50 dark:bg-[#222] rounded-full text-[11px] font-bold text-slate-600 dark:text-white hover:bg-slate-100 dark:hover:bg-[#333] transition-colors"
+            disabled={isPassing || isApplying}
+            className="px-4 py-1.5 border border-slate-200 dark:border-[#444] bg-slate-50 dark:bg-[#222] rounded-full text-[11px] font-bold text-slate-600 dark:text-white hover:bg-slate-100 dark:hover:bg-[#333] transition-colors flex items-center justify-center min-w-[60px]"
           >
-            Pass
+            {isPassing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Pass'}
           </button>
           <button 
             onClick={(e) => { e.stopPropagation(); onApply?.(); }}
-            className="px-4 py-1.5 bg-slate-900 dark:bg-white text-white dark:text-black rounded-full text-[11px] font-bold hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-sm"
+            disabled={isPassing || isApplying}
+            className="px-4 py-1.5 bg-slate-900 dark:bg-white text-white dark:text-black rounded-full text-[11px] font-bold hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-sm flex items-center justify-center min-w-[65px]"
           >
-            Apply
+            {isApplying ? <Loader2 className="w-3 h-3 animate-spin text-white dark:text-black" /> : 'Apply'}
           </button>
         </div>
       </div>

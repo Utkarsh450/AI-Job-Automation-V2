@@ -227,3 +227,4 @@ export default function EditModal({ isOpen, onClose, onSave, section, initialDat
     </div>
   );
 }
+

@@ -51,3 +51,4 @@ export default function EducationSection({ parsedData, setEditingSection }: Prop
     </section>
   );
 }
+

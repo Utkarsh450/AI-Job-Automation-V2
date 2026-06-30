@@ -34,6 +34,7 @@ model User {
   applications       Application[]
   jobMatches         JobMatch[]
   emails             Email[]
+  ignoredJobs        IgnoredJob[]
 }
 
 model Resume {
@@ -80,6 +81,7 @@ model UserPreference {
   previouslyEmployed     Boolean  @default(false)
   enrolledInPhD          Boolean  @default(false)
   yearsInPhD             String?
+  university             String?
 
 
   // Diversity fields (often required in ATS)
@@ -126,6 +128,7 @@ model Job {
 
   applications   Application[]
   matches        JobMatch[]
+  ignoredBy      IgnoredJob[]
 }
 
 model JobMatch {
@@ -174,4 +177,15 @@ model Email {
   bodyText    String   @db.Text
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+model IgnoredJob {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
 }

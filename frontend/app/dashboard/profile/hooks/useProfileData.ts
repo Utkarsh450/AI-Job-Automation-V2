@@ -8,7 +8,7 @@ export function useProfileData() {
   const { data: queryData, isLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/user/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch profile');
@@ -37,7 +37,7 @@ export function useProfileData() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('resume', file);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resume/upload`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resume/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -63,7 +63,7 @@ export function useProfileData() {
         [sectionKey]: newValue
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resume/${latestResume.id}/parsed-data`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resume/${latestResume.id}/parsed-data`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -89,3 +89,4 @@ export function useProfileData() {
     saveMutation
   };
 }
+

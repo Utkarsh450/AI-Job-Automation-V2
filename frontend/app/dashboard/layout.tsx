@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import useAuthStore from '../../src/store/useAuthStore';
+import { useQuery } from '@tanstack/react-query';
 import {
   Rocket,
   LayoutGrid,
@@ -20,9 +21,25 @@ import {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, dbUser } = useAuthStore();
+  const { user, dbUser, token } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+
+  const { data: emails = [] } = useQuery({
+    queryKey: ['emails', token],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/emails`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.emails || [];
+    },
+    enabled: !!token,
+    refetchInterval: 30000,
+  });
+
+  const unreadCount = (emails as any[]).filter((e: any) => !e.isRead).length;
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -93,14 +110,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {isExpanded && (
                   <div className="ml-3 flex-1 flex items-center justify-between">
                     <span className="whitespace-nowrap text-sm">{item.name}</span>
-                    {item.name === 'Inbox' && dbUser?._count?.emails > 0 && (
+                    {item.name === 'Inbox' && unreadCount > 0 && (
                       <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                        {dbUser._count.emails}
+                        {unreadCount}
                       </span>
                     )}
                   </div>
                 )}
-                {!isExpanded && item.name === 'Inbox' && dbUser?._count?.emails > 0 && (
+                {!isExpanded && item.name === 'Inbox' && unreadCount > 0 && (
                   <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full border border-white dark:border-[#1a1a1a]"></span>
                 )}
               </Link>
@@ -163,3 +180,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
+

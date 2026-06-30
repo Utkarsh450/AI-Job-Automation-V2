@@ -75,3 +75,24 @@ exports.seedMockEmails = async (req, res) => {
     res.status(500).json({ error: 'Failed to seed emails' });
   }
 };
+// Mark an email as read
+exports.markAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Verify email belongs to user before updating
+    const email = await prisma.email.findFirst({
+      where: { id, userId: req.user.id }
+    });
+    if (!email) {
+      return res.status(404).json({ error: 'Email not found' });
+    }
+    await prisma.email.update({
+      where: { id },
+      data: { isRead: true }
+    });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Error marking email as read:', error);
+    res.status(500).json({ error: 'Failed to mark email as read' });
+  }
+};

@@ -228,7 +228,7 @@ export default function OnboardingWizard() {
   const { data: profileData } = useQuery({
     queryKey: ['profile', token],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/user/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       return await res.json();
@@ -278,7 +278,7 @@ export default function OnboardingWizard() {
     formData.append('resume', selectedFile);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/resume/upload`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resume/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -320,6 +320,7 @@ export default function OnboardingWizard() {
             previouslyEmployed: preferences.previouslyEmployed,
             enrolledInPhD: preferences.enrolledInPhD,
             yearsInPhD: preferences.yearsInPhD,
+            university: preferences.university,
             gender: demographics.gender,
             pronouns: demographics.pronouns,
             race: demographics.race,
@@ -335,7 +336,7 @@ export default function OnboardingWizard() {
         autoApprove
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -594,6 +595,20 @@ export default function OnboardingWizard() {
                 />
               </div>
             )}
+
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-6 hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50 gap-4 border-t border-slate-100 dark:border-[#222]">
+              <div className="flex flex-col">
+                <span className="text-sm text-slate-700 dark:text-slate-300">University / School</span>
+                <span className="text-xs text-slate-400 mt-1">Used if not clearly found in resume.</span>
+              </div>
+              <input 
+                type="text" 
+                placeholder="e.g. Stanford University"
+                className="w-full sm:w-64 bg-white dark:bg-[#222] border border-slate-200 dark:border-[#333] rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white shadow-sm transition-all duration-300 hover:border-blue-300 dark:hover:border-blue-700"
+                value={preferences.university || ''}
+                onChange={(e) => setPreferences({...preferences, university: e.target.value})}
+              />
+            </div>
           </div>
         </MasterLayout>
       )}
@@ -822,3 +837,4 @@ export default function OnboardingWizard() {
     </div>
   );
 }
+

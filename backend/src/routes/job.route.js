@@ -1,10 +1,11 @@
 const express = require('express');
-const { createJob, getJobs } = require('../controllers/job.controller');
-const { verifyFirebaseToken } = require('../middlewares/authMiddleware');
+const { createJob, getJobs, ignoreJob } = require('../controllers/job.controller');
+const { verifyFirebaseToken, requireDbUser } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 router.post('/', verifyFirebaseToken, createJob);
-router.get('/', verifyFirebaseToken, getJobs);
+router.get('/', requireDbUser, getJobs);
+router.post('/:id/ignore', requireDbUser, ignoreJob);
 
 module.exports = router;

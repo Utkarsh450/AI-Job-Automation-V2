@@ -94,3 +94,4 @@ export default function ProfileHeaderSection({ profile, parsedData, setEditingSe
     </section>
   );
 }
+

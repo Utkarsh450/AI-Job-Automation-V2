@@ -17,7 +17,7 @@ export default function SettingsPage() {
     queryKey: ['profile'],
     queryFn: async () => {
       const token = await user?.getIdToken();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/user/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch profile');
@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const updateMutation = useMutation({
     mutationFn: async (newSettings: any) => {
       const token = await user?.getIdToken();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/user/settings`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/user/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Allow Tsenta to automatically read OTP codes for Greenhouse applications.</p>
                 </div>
                 <a 
-                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/google/connect?token=${token}`}
+                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/google/connect?token=${token}`}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                 >
                   Connect
@@ -303,3 +303,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

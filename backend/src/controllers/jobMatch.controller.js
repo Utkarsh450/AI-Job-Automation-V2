@@ -15,6 +15,8 @@ const getUserJobMatches = async (req, res) => {
             }
         });
 
+        console.log("matches", matches);
+
         res.status(200).json({ matches });
     } catch (error) {
         logger.error(`Error fetching job matches for user ${req.user.id}: ${error.message}`);
