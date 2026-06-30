@@ -74,12 +74,21 @@ model UserPreference {
   // Background (From Onboarding Step 3)
   activeClearance        Boolean  @default(false)
   foreignTies            Boolean  @default(false)
+  authorizedToWork       Boolean  @default(true)
+  requiresVisaSponsorship Boolean @default(false)
+  locatedInUS            Boolean  @default(true)
+  previouslyEmployed     Boolean  @default(false)
+  enrolledInPhD          Boolean  @default(false)
+  yearsInPhD             String?
+
 
   // Diversity fields (often required in ATS)
   gender             String?
+  pronouns           String?
   race               String?
   veteranStatus      String?
   disabilityStatus   String?
+  lgbtqStatus        String?
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

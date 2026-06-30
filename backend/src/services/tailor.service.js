@@ -95,12 +95,15 @@ ${JSON.stringify(parsedData)}`;
  * @param {Object} resumeJson - The user's parsed resume JSON
  * @returns {string} The concise generated answer
  */
-const generateFormAnswer = async (question, resumeJson) => {
+const generateFormAnswer = async (question, resumeJson, userInfo = {}) => {
     const prompt = `You are filling out a job application on behalf of a candidate. 
 You must answer the following question as the candidate.
-Keep your answer highly professional, extremely concise (1-2 sentences unless asked for more), and strictly factual based on the resume.
+Keep your answer highly professional, extremely concise (1-2 sentences unless asked for more), and strictly factual based on the resume and the candidate's onboarding preferences.
 
 Question from form: "${question}"
+
+Candidate Onboarding Preferences & Demographics:
+${JSON.stringify(userInfo, null, 2)}
 
 Candidate Resume:
 ${JSON.stringify(resumeJson, null, 2)}

@@ -70,9 +70,11 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const { 
-            location, // Assuming it's a string like "San Francisco, CA, 94103, US"
-            visaStatus,
+            location, 
+            visaStatus, 
             requiresSponsorship, // We'll store this as part of visaStatus or preferences if needed
+            linkedinUrl,
+            githubUrl,
             preferences, // Object containing all the yes/no flags
             appPasswords, // Array of { domain, username, password }
             resumeOptimization,
@@ -86,6 +88,8 @@ const updateProfile = async (req, res) => {
             data: {
                 location,
                 visaStatus,
+                linkedinUrl,
+                githubUrl,
                 isOnboarded: true
             }
         });

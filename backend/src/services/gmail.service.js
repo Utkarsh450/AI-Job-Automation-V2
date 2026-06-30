@@ -45,7 +45,7 @@ const fetchGreenhouseOtp = async (userId) => {
 
         const res = await gmail.users.messages.list({
             userId: 'me',
-            q: 'from:no-reply@greenhouse.io newer_than:1h',
+            q: 'newer_than:1h verification code',
             maxResults: 5
         });
 

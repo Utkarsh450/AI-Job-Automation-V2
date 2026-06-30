@@ -112,7 +112,7 @@ const applyToGreenhouse = async (jobUrl, userInfo, resumeBuffer, tailoredResume,
             }, select);
             
             // Skip these native/plugin dropdowns that shouldn't be touched by the custom questions loop
-            if (!labelText || labelText.includes('country') || labelText.includes('location') || labelText.includes('school') || labelText.includes('degree') || labelText.includes('discipline')) {
+            if (!labelText || labelText === 'country' || labelText.includes('country code') || labelText.includes('location') || labelText.includes('school') || labelText.includes('degree') || labelText.includes('discipline')) {
                 continue;
             }
             
@@ -206,10 +206,13 @@ const applyToGreenhouse = async (jobUrl, userInfo, resumeBuffer, tailoredResume,
             }
         }
 
-        const customInputs = await page.$$('.custom_question input:not([type="hidden"]):not([type="file"]):not([type="submit"]), .custom_question textarea, .field input:not([type="hidden"]):not([type="file"]):not([type="submit"]), .field textarea, .field-wrapper input:not([type="hidden"]):not([type="file"]):not([type="submit"]):not([role="combobox"]), .field-wrapper textarea');
+        const customInputs = await page.$$('.custom_question input:not([type="hidden"]):not([type="file"]):not([type="submit"]):not([id^="react-select"]):not([aria-autocomplete="list"]), .custom_question textarea, .field input:not([type="hidden"]):not([type="file"]):not([type="submit"]):not([id^="react-select"]):not([aria-autocomplete="list"]), .field textarea, .field-wrapper input:not([type="hidden"]):not([type="file"]):not([type="submit"]):not([role="combobox"]):not([id^="react-select"]):not([aria-autocomplete="list"]), .field-wrapper textarea');
         for (const input of customInputs) {
             const isVisible = await input.isVisible();
             if (!isVisible) continue;
+
+            const isReactSelect = await page.evaluate(el => !!el.closest('div[class*="select__control"], div[class*="-control"]'), input);
+            if (isReactSelect) continue;
 
             const labelText = await page.evaluate(el => {
                 const label = el.closest('.custom_question, .field, .field-wrapper');
@@ -219,14 +222,20 @@ const applyToGreenhouse = async (jobUrl, userInfo, resumeBuffer, tailoredResume,
             
             if (!lowerLabel || lowerLabel.includes('first name') || lowerLabel.includes('last name') || lowerLabel.includes('email') || lowerLabel.includes('phone') || lowerLabel.includes('location')) continue;
 
-            if (lowerLabel.includes('linkedin') && userInfo.linkedin) {
-                await input.fill(userInfo.linkedin);
-            } else if ((lowerLabel.includes('github') || lowerLabel.includes('portfolio') || lowerLabel.includes('website')) && userInfo.github) {
-                await input.fill(userInfo.github);
+            if (lowerLabel.includes('linkedin') && userInfo.linkedin && userInfo.linkedin.toLowerCase() !== 'linkedin') {
+                const url = userInfo.linkedin.startsWith('http') ? userInfo.linkedin : `https://${userInfo.linkedin}`;
+                if (url.includes('.')) await input.fill(url);
+            } else if ((lowerLabel.includes('github') || lowerLabel.includes('portfolio') || lowerLabel.includes('website')) && userInfo.github && userInfo.github.toLowerCase() !== 'github') {
+                const url = userInfo.github.startsWith('http') ? userInfo.github : `https://${userInfo.github}`;
+                if (url.includes('.')) await input.fill(url);
+            } else if ((lowerLabel.includes('salary') || lowerLabel.includes('compensation') || lowerLabel.includes('pay')) && userInfo.preferences?.targetSalary) {
+                await input.fill(userInfo.preferences.targetSalary.toString());
+            } else if (lowerLabel.includes('where do you intend to work') || lowerLabel.includes('city and state')) {
+                await input.fill(userInfo.location || '');
             } else {
                 // Use AI to answer unknown custom questions!
                 logger.info(`Generating AI answer for question: "${labelText}"`);
-                const answer = await generateFormAnswer(labelText, tailoredResume);
+                const answer = await generateFormAnswer(labelText, tailoredResume, userInfo);
                 await input.fill(answer);
                 logger.info(`AI Answered: ${answer}`);
                 // Small delay to simulate human typing
@@ -345,10 +354,126 @@ const applyToGreenhouse = async (jobUrl, userInfo, resumeBuffer, tailoredResume,
                     }
                     
                     if (!selected && optCount > 0) {
-                        // Pick the last option (usually "I don't wish to answer" or similar decline)
-                        const lastOptText = (await options.nth(optCount - 1).innerText()).trim();
-                        await options.nth(optCount - 1).click({ force: true });
-                        logger.info(`  Fallback selected last option: "${lastOptText}"`);
+                        // Only use the 'pick the last option' fallback for actual demographic fields (where the last option is usually "I decline to state")
+                        const isDemographic = labelText.includes('veteran') || labelText.includes('disability') || labelText.includes('race') || labelText.includes('gender') || labelText.includes('sex') || labelText.includes('ethnicity') || labelText.includes('sponsorship') || labelText.includes('authorized');
+                        
+                        if (isDemographic) {
+                            const lastOptText = (await options.nth(optCount - 1).innerText()).trim();
+                            await options.nth(optCount - 1).click({ force: true });
+                            logger.info(`  Fallback selected last option: "${lastOptText}"`);
+                        } else {
+                            logger.info(`  Unknown dropdown "${labelText}". Extracting options to infer type...`);
+                            const optionTexts = [];
+                            const lowerOptionTexts = [];
+                            for (let i = 0; i < optCount; i++) {
+                                const t = await options.nth(i).innerText().then(t => t.trim());
+                                optionTexts.push(t);
+                                lowerOptionTexts.push(t.toLowerCase());
+                            }
+                            
+                            // 1. Direct Inference: Check if options array reveals it's a demographic question
+                            const optionsString = lowerOptionTexts.join(' ');
+                            let inferredDirectText = null;
+                            
+                            if (optionsString.includes('male') && optionsString.includes('female')) {
+                                inferredDirectText = (userInfo.demographics?.gender || "decline").toLowerCase();
+                                logger.info(`  Inferred this is a Gender dropdown based on options.`);
+                            } else if (optionsString.includes('hispanic') || optionsString.includes('asian') || optionsString.includes('white')) {
+                                inferredDirectText = (userInfo.demographics?.race || "decline").toLowerCase();
+                                logger.info(`  Inferred this is a Race dropdown based on options.`);
+                            } else if (optionsString.includes('veteran')) {
+                                const vet = userInfo.demographics?.veteranStatus || "Decline";
+                                if (vet === "I am not a protected veteran") inferredDirectText = "not a protected";
+                                else if (vet === "I am a protected veteran") inferredDirectText = "identify as";
+                                else inferredDirectText = "decline";
+                                logger.info(`  Inferred this is a Veteran dropdown based on options.`);
+                            } else if (optionsString.includes('disability') || optionsString.includes('impairment')) {
+                                const dis = userInfo.demographics?.disabilityStatus || "Decline";
+                                if (dis === "No") inferredDirectText = "don't have";
+                                else if (dis === "Yes") inferredDirectText = "yes, i have";
+                                else inferredDirectText = "don't wish";
+                                logger.info(`  Inferred this is a Disability dropdown based on options.`);
+                            } else if (optionsString.includes('she/her') || optionsString.includes('he/him') || optionsString.includes('they/them')) {
+                                inferredDirectText = (userInfo.preferences?.pronouns || "decline").toLowerCase();
+                                // Match specific formats if needed (e.g. "she/her/hers" just contains "she/her")
+                                if (inferredDirectText.includes('she')) inferredDirectText = 'she/her';
+                                else if (inferredDirectText.includes('he')) inferredDirectText = 'he/him';
+                                else if (inferredDirectText.includes('they')) inferredDirectText = 'they/them';
+                                logger.info(`  Inferred this is a Pronouns dropdown based on options.`);
+                            } else if ((optionsString.includes('remote') || optionsString.includes('hybrid') || optionsString.includes('on-site')) && userInfo.preferences?.remotePreference && userInfo.preferences.remotePreference !== 'Any') {
+                                inferredDirectText = userInfo.preferences.remotePreference.toLowerCase();
+                                logger.info(`  Inferred this is a Work Style dropdown based on options.`);
+                            } else if (optionsString.includes('yes') && optionsString.includes('no') && labelText.includes('authorized')) {
+                                inferredDirectText = userInfo.preferences?.authorizedToWork !== false ? "yes" : "no";
+                                logger.info(`  Inferred this is an Authorization dropdown based on options.`);
+                            } else if (optionsString.includes('yes') && optionsString.includes('no') && labelText.includes('sponsorship')) {
+                                inferredDirectText = userInfo.preferences?.requiresVisaSponsorship === true ? "yes" : "no";
+                                logger.info(`  Inferred this is a Sponsorship dropdown based on options.`);
+                            } else if (optionsString.includes('yes') && optionsString.includes('no') && (labelText.toLowerCase().includes('worked for') && labelText.toLowerCase().includes('before'))) {
+                                inferredDirectText = userInfo.preferences?.previouslyEmployed === true ? "yes" : "no";
+                                logger.info(`  Inferred Previous Employment question.`);
+                            } else if (optionsString.includes('yes') && optionsString.includes('no') && labelText.toLowerCase().includes('ph.d')) {
+                                inferredDirectText = userInfo.preferences?.enrolledInPhD === true ? "yes" : "no";
+                                logger.info(`  Inferred Ph.D question.`);
+                            } else if (labelText.toLowerCase().includes('how many years') && labelText.toLowerCase().includes('ph.d')) {
+                                inferredDirectText = (userInfo.preferences?.yearsInPhD || "decline").toLowerCase();
+                                logger.info(`  Inferred Ph.D Years question.`);
+                            } else if (optionsString.includes('yes') && optionsString.includes('no') && labelText.toLowerCase().includes('located in the us')) {
+                                inferredDirectText = userInfo.preferences?.locatedInUS === false ? "no" : "yes";
+                                logger.info(`  Inferred US Location question.`);
+                            } else if (optionsString.includes('yes') && optionsString.includes('no') && labelText.toLowerCase().includes('bay area')) {
+                                inferredDirectText = userInfo.preferences?.willingToRelocate === true ? "yes" : "no";
+                                logger.info(`  Inferred Bay Area Relocation question.`);
+                            } else if (optionsString.includes('lgbtq')) {
+                                inferredDirectText = (userInfo.preferences?.lgbtqStatus || "decline").toLowerCase();
+                                logger.info(`  Inferred LGBTQ+ Status question.`);
+                            }
+                            
+                            if (inferredDirectText) {
+                                // We found a direct demographic match! Just click it, no AI needed!
+                                let matched = false;
+                                for (let i = 0; i < optCount; i++) {
+                                    if (lowerOptionTexts[i].includes(inferredDirectText)) {
+                                        await options.nth(i).click({ force: true });
+                                        logger.info(`  Directly Selected Onboarding Data: "${optionTexts[i]}"`);
+                                        matched = true;
+                                        break;
+                                    }
+                                }
+                                if (!matched) {
+                                    const lastOptText = optionTexts[optCount - 1];
+                                    await options.nth(optCount - 1).click({ force: true });
+                                    logger.info(`  Fallback selected last option: "${lastOptText}"`);
+                                }
+                            } else {
+                                // 2. True Unknown Dropdown: Call AI (e.g. "How did you hear about us?")
+                                logger.info(`  Using AI to select option for custom dropdown...`);
+                                const aiPrompt = `Which of these options is the most accurate for the candidate based on their resume? 
+Question/Label: "${labelText}"
+Options: ${JSON.stringify(optionTexts)}
+
+Return EXACTLY the text of the chosen option, nothing else. Do not add markdown or quotes. If you cannot decide or there is no good match, return exactly the last option in the array.`;
+                                
+                                const aiSelectedText = await generateFormAnswer(aiPrompt, tailoredResume, userInfo);
+                                logger.info(`  AI suggested: "${aiSelectedText}"`);
+                                
+                                let aiSelected = false;
+                                for (let i = 0; i < optCount; i++) {
+                                    if (lowerOptionTexts[i].includes(aiSelectedText.toLowerCase())) {
+                                        await options.nth(i).click({ force: true });
+                                        logger.info(`  AI Selected: "${optionTexts[i]}"`);
+                                        aiSelected = true;
+                                        break;
+                                    }
+                                }
+                                
+                                if (!aiSelected) {
+                                    const lastOptText = optionTexts[optCount - 1];
+                                    await options.nth(optCount - 1).click({ force: true });
+                                    logger.info(`  AI Failed to match. Fallback selected last option: "${lastOptText}"`);
+                                }
+                            }
+                        }
                     }
                 } else {
                     // Menu didn't open via click, try keyboard

@@ -90,7 +90,8 @@ const submitWorker = inngest.createFunction(
                 race: appData.user.preferences?.race || 'Decline',
                 veteranStatus: appData.user.preferences?.veteranStatus || 'I am not a protected veteran',
                 disabilityStatus: appData.user.preferences?.disabilityStatus || 'No'
-            }
+            },
+            preferences: appData.user.preferences || {}
         };
 
         // 5. Automate Submission based on platform

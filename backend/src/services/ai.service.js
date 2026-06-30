@@ -59,7 +59,7 @@ const generateAICompletion = async (systemPrompt, userPrompt, useJsonMode = true
                     }
                 });
                 
-                return response.text() || "";
+                return response.text || "";
             } catch (geminiError) {
                 logger.error(`Gemini fallback also failed: ${geminiError.message}`);
                 throw geminiError;
