@@ -32,11 +32,22 @@ const handleOTP = async (page, userId) => {
 
         if (otpCode) {
             logger.info(`✅ OTP Found: ${otpCode}. Filling it in...`);
-            const otpInput = await page.$('input[name="verification_code"], input[type="number"], input[name="token"]');
+            
+            const otpSelector = 'input[name*="verification"], input[name*="code"], input[name*="token"], input[id*="verify"], input[id*="code"], input[autocomplete*="one-time"]';
+            let otpInput;
+            
+            try {
+                await page.waitForSelector(otpSelector, { state: 'visible', timeout: 5000 });
+                otpInput = await page.$(otpSelector);
+            } catch (e) {
+                logger.warn('Specific OTP selector not found, falling back to any text input...');
+                otpInput = await page.$('input[type="text"], input[type="number"]');
+            }
+
             if (otpInput) {
                 await otpInput.fill(otpCode);
-                await page.click('button[type="submit"], button:has-text("Verify")');
-                await page.waitForNavigation({ waitUntil: 'networkidle' });
+                await page.click('button[type="submit"], button:has-text("Verify"), button:has-text("Submit"), button:has-text("Confirm")');
+                await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
             } else {
                 logger.error('Found OTP but could not find the input box on the page.');
                 return { success: false, error: 'Failed to find OTP input box.' };
