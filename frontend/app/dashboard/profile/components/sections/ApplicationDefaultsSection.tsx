@@ -21,7 +21,17 @@ export default function ApplicationDefaultsSection({ profile, setEditingSection 
             <p className="text-xs text-slate-500">What we auto-fill on every ATS form.</p>
           </div>
         </div>
-        <button className="flex items-center gap-1.5 px-4 py-1.5 border border-slate-200 dark:border-[#333] hover:bg-slate-50 dark:hover:bg-[#222] rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors">
+        <button 
+          onClick={() => setEditingSection({
+            key: 'application-defaults',
+            title: 'Edit Application Defaults',
+            data: {
+              visaStatus: profile.visaStatus || 'US Citizen',
+              preferences: prefs
+            }
+          })}
+          className="flex items-center gap-1.5 px-4 py-1.5 border border-slate-200 dark:border-[#333] hover:bg-slate-50 dark:hover:bg-[#222] rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors"
+        >
           <Edit2 className="w-3 h-3" /> Edit
         </button>
       </div>
@@ -34,10 +44,10 @@ export default function ApplicationDefaultsSection({ profile, setEditingSection 
             <span>{profile.visaStatus || 'US Citizen'}</span>
           </div>
           <div className="flex gap-3">
-            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${profile.requiresSponsorship === false ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-900/10 dark:text-emerald-400' : 'border-slate-200 text-slate-400 dark:border-[#333]'}`}>
-              {profile.requiresSponsorship === false && <CheckCircle2 className="w-3.5 h-3.5" />} Authorized to work
+            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${prefs.requiresVisaSponsorship === false ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-900/10 dark:text-emerald-400' : 'border-slate-200 text-slate-400 dark:border-[#333]'}`}>
+              {prefs.requiresVisaSponsorship === false && <CheckCircle2 className="w-3.5 h-3.5" />} Authorized to work
             </span>
-            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${profile.requiresSponsorship === true ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/10 dark:text-amber-400' : 'border-slate-200 text-slate-400 dark:border-[#333]'}`}>
+            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${prefs.requiresVisaSponsorship === true ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/10 dark:text-amber-400' : 'border-slate-200 text-slate-400 dark:border-[#333]'}`}>
               Needs sponsorship
             </span>
           </div>

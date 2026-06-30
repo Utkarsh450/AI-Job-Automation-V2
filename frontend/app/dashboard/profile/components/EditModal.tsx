@@ -169,6 +169,111 @@ export default function EditModal({ isOpen, onClose, onSave, section, initialDat
     </div>
   );
 
+  const renderApplicationDefaults = () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Work Authorization</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Visa Type</label>
+            <select 
+              className="w-full p-2.5 bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-[#333] rounded-lg text-sm"
+              value={formData?.visaStatus || 'US Citizen'}
+              onChange={(e) => setFormData({...formData, visaStatus: e.target.value})}
+            >
+              <option value="US Citizen">US Citizen</option>
+              <option value="Green Card">Green Card</option>
+              <option value="H1B">H1B</option>
+              <option value="F1 OPT">F1 OPT</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Requires Sponsorship</label>
+            <select 
+              className="w-full p-2.5 bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-[#333] rounded-lg text-sm"
+              value={formData?.preferences?.requiresVisaSponsorship ? 'Yes' : 'No'}
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, requiresVisaSponsorship: e.target.value === 'Yes'}})}
+            >
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <hr className="border-slate-100 dark:border-[#333]" />
+
+      <div>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Work Preferences</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+              checked={formData?.preferences?.openToInPerson !== false} 
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, openToInPerson: e.target.checked}})} 
+            />
+            <span className="text-sm">In-person OK</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+              checked={formData?.preferences?.willingToRelocate === true} 
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, willingToRelocate: e.target.checked}})} 
+            />
+            <span className="text-sm">Can relocate</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+              checked={formData?.preferences?.canStartImmediately !== false} 
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, canStartImmediately: e.target.checked}})} 
+            />
+            <span className="text-sm">Can start immediately</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+              checked={formData?.preferences?.reliableTransportation !== false} 
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, reliableTransportation: e.target.checked}})} 
+            />
+            <span className="text-sm">Has reliable transportation</span>
+          </label>
+          <div className="col-span-2">
+            <label className="block text-xs font-bold text-slate-500 mb-1">Needs Accommodations?</label>
+            <select 
+              className="w-full p-2.5 bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-[#333] rounded-lg text-sm"
+              value={formData?.preferences?.needAccommodations || 'No'}
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, needAccommodations: e.target.value}})}
+            >
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <hr className="border-slate-100 dark:border-[#333]" />
+
+      <div>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Background</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+              checked={formData?.preferences?.activeClearance === true} 
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, activeClearance: e.target.checked}})} 
+            />
+            <span className="text-sm">Has Gov clearance</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+              checked={formData?.preferences?.foreignTies === true} 
+              onChange={(e) => setFormData({...formData, preferences: {...formData.preferences, foreignTies: e.target.checked}})} 
+            />
+            <span className="text-sm">Has Gov ties</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -190,6 +295,7 @@ export default function EditModal({ isOpen, onClose, onSave, section, initialDat
           {section === 'education' && renderEducation()}
           {section === 'projects' && renderProjects()}
           {section === 'certifications' && renderCertifications()}
+          {section === 'application-defaults' && renderApplicationDefaults()}
           
           {section === 'professional_summary' && (
             <textarea

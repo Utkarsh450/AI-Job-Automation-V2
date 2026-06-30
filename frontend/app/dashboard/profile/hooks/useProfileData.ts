@@ -56,21 +56,37 @@ export function useProfileData() {
 
   const saveMutation = useMutation({
     mutationFn: async ({ sectionKey, newValue }: { sectionKey: string, newValue: any }) => {
-      if (!latestResume) throw new Error('No active resume');
+      let res;
       
-      const updatedParsedData = {
-        ...latestResume.parsedData,
-        [sectionKey]: newValue
-      };
+      if (sectionKey === 'application-defaults') {
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/users/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            visaStatus: newValue.visaStatus,
+            preferences: newValue.preferences
+          })
+        });
+      } else {
+        if (!latestResume) throw new Error('No active resume');
+        
+        const updatedParsedData = {
+          ...latestResume.parsedData,
+          [sectionKey]: newValue
+        };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resume/${latestResume.id}/parsed-data`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ parsedData: updatedParsedData })
-      });
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resume/${latestResume.id}/parsed-data`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ parsedData: updatedParsedData })
+        });
+      }
 
       if (!res.ok) throw new Error('Failed to save changes');
       return res.json();

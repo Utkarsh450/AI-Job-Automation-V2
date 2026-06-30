@@ -5,8 +5,10 @@ import useAuthStore from '../../../src/store/useAuthStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Settings2, Lock, CreditCard, Users, Mail, UserCircle, FileText, Eye, EyeOff, Copy } from 'lucide-react';
 import { useTheme } from "next-themes";
+import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { user, token, isLoading, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('Apply settings');
@@ -289,7 +291,10 @@ export default function SettingsPage() {
                   <p className="text-sm text-slate-500 dark:text-slate-400">Sign out of your account on this device</p>
                 </div>
                 <button 
-                  onClick={() => logout()}
+                  onClick={async () => {
+                    await logout();
+                    router.push('/login');
+                  }}
                   className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-900/50 text-sm font-medium rounded-lg transition-all duration-300 hover:shadow-md hover:scale-105 active:scale-95"
                 >
                   Log out

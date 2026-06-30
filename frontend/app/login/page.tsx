@@ -71,30 +71,26 @@ export default function LoginPage() {
               </svg>
               <span className="text-xl font-bold tracking-tight">Tsenta</span>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm text-sm font-medium">
-              <div className="bg-[#FF6600] text-white p-[2px] rounded-sm text-[10px] font-bold leading-none">Y</div>
-              <span>Backed by Y Combinator</span>
-            </div>
           </div>
 
           {/* Hero Content */}
           <div className="space-y-6">
             <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
-              Made by people who needed it
+              Intelligent Job Applications
             </p>
             <h1 className="text-5xl lg:text-6xl font-medium tracking-tight leading-[1.05] text-slate-900">
-              Be first to every job<br/>that fits you. Hands off.
+              Your autonomous<br/>job search agent.
             </h1>
             <p className="text-lg text-slate-500 leading-relaxed max-w-md mt-4">
-              We applied to 3,000 jobs by hand, and the job hunt broke us. With Tsenta, you apply to zero. We do three things really well:
+              We automate the entire job search process so you can focus on preparing for interviews.
             </p>
 
             {/* Checklist */}
             <div className="space-y-4 mt-8 pt-8 border-t border-slate-200">
               {[
-                "Match you with 2M+ jobs that fit you",
-                "Optimize your résumé and write a custom cover letter for each",
-                "Actually apply to them (we even create your Workday accounts!)"
+                "Find jobs that match your exact profile",
+                "Automatically optimize your resume for each application",
+                "Apply on your behalf and track everything in one place"
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <Check className="w-5 h-5 text-slate-900 shrink-0 mt-0.5" strokeWidth={2.5} />

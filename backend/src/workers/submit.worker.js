@@ -125,6 +125,18 @@ const submitWorker = inngest.createFunction(
                     where: { id: applicationId },
                     data: { status: 'APPLIED' }
                 });
+
+                // Send internal inbox notification
+                await prisma.email.create({
+                    data: {
+                        userId: userId,
+                        fromName: 'Tsenta Agent',
+                        fromEmail: 'agent@tsenta.com',
+                        subject: `✅ Application Submitted: ${appData.job.title} at ${appData.job.company}`,
+                        bodyText: `Good news ${userInfo.firstName}!\n\nYour application for ${appData.job.title} at ${appData.job.company} has been successfully submitted by Tsenta.\n\nYou can track its progress in your dashboard.\n\nBest,\nTsenta AI`,
+                        bodyHtml: `<p>Good news ${userInfo.firstName}!</p><p>Your application for <strong>${appData.job.title}</strong> at <strong>${appData.job.company}</strong> has been successfully submitted by Tsenta.</p><p>You can track its progress in your dashboard.</p><p>Best,<br/>Tsenta AI</p>`
+                    }
+                });
             });
             logger.info(`Successfully submitted application ${applicationId}`);
         } else {
