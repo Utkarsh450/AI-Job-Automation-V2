@@ -3,21 +3,21 @@ const logger = require('../utils/logger');
 const { scrapeAllBoards } = require('../services/job.service');
 
 /**
- * Inngest worker: greenhouse-scraper
+ * Inngest worker: universal-scraper
  * Runs every hour on a cron schedule.
  * Delegates all scraping logic to job.service.js.
  */
 const scraperWorker = inngest.createFunction(
     {
-        id: 'greenhouse-scraper',
-        name: 'Greenhouse Job Scraper',
+        id: 'universal-scraper',
+        name: 'Universal Job Scraper',
         triggers: [
             { cron: '*/30 * * * *' }
         ],
         concurrency: 1 // Prevent multiple concurrent scrapers
     },
     async ({ event, step }) => {
-        logger.info('Greenhouse Scraper Worker triggered.');
+        logger.info('Universal Scraper Worker triggered.');
 
         // Step 1: Scrape all configured boards
         const results = await step.run('Scrape All Boards', async () => {

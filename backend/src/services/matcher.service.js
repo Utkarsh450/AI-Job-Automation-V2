@@ -112,8 +112,21 @@ const runMatchingPipelineForResume = async (resume) => {
         });
         if (alreadyApplied) continue;
 
+        // Skip if already matched/scored to save API quota!
+        const alreadyMatched = await prisma.jobMatch.findUnique({
+            where: { userId_jobId: { userId: resume.userId, jobId: job.id } }
+        });
+        if (alreadyMatched) {
+            if (alreadyMatched.fitScore >= HIGH_SCORE_THRESHOLD) highScoringCount++;
+            continue;
+        }
+
         const analysis = await scoreJobWithAI(profileText, job);
-        if (!analysis) continue;
+        if (!analysis) {
+            // If API failed due to rate limits, wait 5 seconds before trying the next one to allow quotas to reset
+            await new Promise(res => setTimeout(res, 5000));
+            continue;
+        }
 
         const match = await saveJobMatch({
             userId: resume.userId,
@@ -127,6 +140,9 @@ const runMatchingPipelineForResume = async (resume) => {
             logger.info(`Match saved: ${resume.user.email} → ${job.title} at ${job.company} (Score: ${analysis.score})`);
             if (analysis.score >= HIGH_SCORE_THRESHOLD) highScoringCount++;
         }
+
+        // Small delay between calls to respect free tier rate limits (e.g. 20 requests / min)
+        await new Promise(res => setTimeout(res, 3000));
     }
 
     return { highScoringCount };

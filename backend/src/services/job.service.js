@@ -1,10 +1,20 @@
-
 const prisma = require('../config/db');
 const { getEmbedding } = require('../utils/embeddings');
 const logger = require('../utils/logger');
+const { scrapeGreenhouse } = require('./scrapers/greenhouse.scraper');
+const { scrapeWorkday } = require('./scrapers/workday.scraper');
 
-/** Boards to scrape from Greenhouse public API */
-const TARGET_BOARDS = ['discord', 'figma'];
+/** Centralized configuration for all target companies */
+const TARGET_COMPANIES = [
+    { name: 'discord', ats: 'greenhouse' },
+    { name: 'figma', ats: 'greenhouse' },
+    { 
+        name: 'nvidia', 
+        ats: 'workday',
+        apiUrl: 'https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs',
+        siteUrl: 'https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite'
+    }
+];
 
 /**
  * Strips HTML tags and trims to a safe length for embedding/storage.
@@ -13,53 +23,31 @@ const cleanHtmlDescription = (html = '', maxLength = 2000) =>
     html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
 
 /**
- * Fetches all jobs from a single Greenhouse board.
- * Returns an empty array on failure (non-fatal per board).
- */
-const fetchGreenhouseJobs = async (board) => {
-    try {
-        const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs?content=true`);
-        if (!res.ok) {
-            logger.warn(`Greenhouse API returned ${res.status} for board: ${board}`);
-            return [];
-        }
-        const data = await res.json();
-        return data.jobs || [];
-    } catch (err) {
-        logger.error(`Failed to fetch Greenhouse board "${board}": ${err.message}`);
-        return [];
-    }
-};
-
-/**
  * Inserts a single job with its vector embedding.
  * Skips if the job URL already exists (idempotent).
- * Uses raw SQL for pgvector INSERT (Prisma ORM doesn't support vector writes natively).
+ * Uses raw SQL for pgvector INSERT.
  *
  * @returns {boolean} true if inserted, false if skipped
  */
-const insertJobWithEmbedding = async (job, board) => {
+const insertJobWithEmbedding = async (job) => {
     // Idempotency check
-    const exists = await prisma.job.findFirst({ where: { url: job.absolute_url } });
+    const exists = await prisma.job.findFirst({ where: { url: job.url } });
     if (exists) return false;
 
-    const cleanDescription = cleanHtmlDescription(job.content);
-    const embeddingArray = await getEmbedding(`${job.title} ${job.location?.name || ''} ${cleanDescription}`);
+    const cleanDescription = cleanHtmlDescription(job.descriptionHtml);
+    const embeddingArray = await getEmbedding(`${job.title} ${job.location || ''} ${cleanDescription}`);
     const embeddingVector = `[${embeddingArray.join(',')}]`;
 
-    // Decode HTML entities so we store actual HTML instead of &lt;div&gt;
-    // We can use a simple regex replacement for common entities, or just rely on the frontend decoding.
-    // We'll store the full content in the DB for the UI, and use the truncated cleanDescription for AI.
     await prisma.$executeRaw`
         INSERT INTO "Job" (id, title, company, location, description, url, "atsPlatform", embedding, "createdAt")
         VALUES (
             gen_random_uuid(),
             ${job.title},
-            ${board},
-            ${job.location?.name || 'Remote'},
-            ${job.content},
-            ${job.absolute_url},
-            'greenhouse',
+            ${job.company},
+            ${job.location},
+            ${job.descriptionHtml},
+            ${job.url},
+            ${job.atsPlatform},
             ${embeddingVector}::vector,
             NOW()
         )
@@ -68,35 +56,45 @@ const insertJobWithEmbedding = async (job, board) => {
 };
 
 /**
- * Scrapes all TARGET_BOARDS and inserts new jobs.
- * Returns a summary: { board, inserted, skipped } for each board.
+ * Scrapes all TARGET_COMPANIES using their specific ATS scraper.
+ * Returns a summary: { company, inserted, skipped } for each.
  */
 const scrapeAllBoards = async () => {
     const results = [];
-    for (const board of TARGET_BOARDS) {
+    for (const company of TARGET_COMPANIES) {
         let inserted = 0;
         let skipped = 0;
-        const jobs = await fetchGreenhouseJobs(board);
+        let jobs = [];
+
+        // Route to the correct scraper
+        if (company.ats === 'greenhouse') {
+            jobs = await scrapeGreenhouse(company.name);
+        } else if (company.ats === 'workday') {
+            jobs = await scrapeWorkday(company);
+        } else {
+            logger.warn(`Unsupported ATS platform for company: ${company.name}`);
+            continue;
+        }
+
         for (const job of jobs) {
             try {
-                const wasInserted = await insertJobWithEmbedding(job, board);
+                const wasInserted = await insertJobWithEmbedding(job);
                 if (wasInserted) inserted++;
                 else skipped++;
             } catch (err) {
-                logger.error(`Error inserting job "${job.title}" from ${board}: ${err.message}`);
+                logger.error(`Error inserting job "${job.title}" from ${company.name}: ${err.message}`);
                 skipped++;
             }
         }
-        logger.info(`Scraped ${board}: ${inserted} new, ${skipped} skipped.`);
-        results.push({ board, inserted, skipped });
+        logger.info(`Scraped ${company.name} (${company.ats}): ${inserted} new, ${skipped} skipped.`);
+        results.push({ company: company.name, inserted, skipped });
     }
     return results;
 };
 
 module.exports = {
-    TARGET_BOARDS,
+    TARGET_COMPANIES,
     scrapeAllBoards,
-    fetchGreenhouseJobs,
     insertJobWithEmbedding,
     cleanHtmlDescription
 };

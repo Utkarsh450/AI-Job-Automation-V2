@@ -105,6 +105,9 @@ const submitWorker = inngest.createFunction(
             submissionResult = await step.run('execute-headless-automation', async () => {
                 if (jobUrl.includes('greenhouse.io')) {
                     return await applyToGreenhouse(appData.job.url, userInfo, actualPdfBuffer, tailoredResume, userId);
+                } else if (jobUrl.includes('myworkdayjobs.com')) {
+                    const { applyToWorkday } = require('../automation/workday');
+                    return await applyToWorkday(appData.job.url, userInfo, actualPdfBuffer, tailoredResume, userId);
                 } else {
                     // Fallback or unsupported platform
                     throw new Error(`Unsupported ATS platform for URL: ${jobUrl}`);
