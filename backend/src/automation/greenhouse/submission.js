@@ -16,9 +16,11 @@ const handleOTP = async (page, userId) => {
     }
 
     const urlAfterSubmit = page.url();
-    const pageText = await page.content();
 
-    if (pageText.includes('verify your email') || pageText.includes('verification code') || urlAfterSubmit.includes('verify')) {
+    // Only check VISIBLE text, not raw HTML which might contain hidden templates
+    const visibleText = await page.evaluate(() => document.body.innerText.toLowerCase());
+
+    if (visibleText.includes('verify your email') || visibleText.includes('verification code') || urlAfterSubmit.includes('verify')) {
         logger.warn('🚨 OTP Verification Wall Detected!');
         logger.info('Polling Gmail API for the 6-digit code...');
 
@@ -32,26 +34,53 @@ const handleOTP = async (page, userId) => {
 
         if (otpCode) {
             logger.info(`✅ OTP Found: ${otpCode}. Filling it in...`);
-            
-            const otpSelector = 'input[name*="verification"], input[name*="code"], input[name*="token"], input[id*="verify"], input[id*="code"], input[autocomplete*="one-time"]';
-            let otpInput;
-            
-            try {
-                await page.waitForSelector(otpSelector, { state: 'visible', timeout: 5000 });
-                otpInput = await page.$(otpSelector);
-            } catch (e) {
-                logger.warn('Specific OTP selector not found, falling back to any text input...');
-                otpInput = await page.$('input[type="text"], input[type="number"]');
-            }
 
-            if (otpInput) {
-                await otpInput.fill(otpCode);
-                await page.click('button[type="submit"], button:has-text("Verify"), button:has-text("Submit"), button:has-text("Confirm")');
-                await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
+            // First check if the specific split OTP UI is present
+            const splitOtpInputs = await page.$$('.email-verification__wrapper input, input[id^="security-input-"]');
+
+            if (splitOtpInputs.length === otpCode.length) {
+                logger.info(`Detected split OTP boxes via specific selectors (${splitOtpInputs.length} boxes). Filling individually...`);
+                for (let i = 0; i < otpCode.length; i++) {
+                    await splitOtpInputs[i].fill(otpCode[i]);
+                }
             } else {
-                logger.error('Found OTP but could not find the input box on the page.');
-                return { success: false, error: 'Failed to find OTP input box.' };
+                // Fallback to searching all visible inputs
+                const inputs = await page.$$('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])');
+                const visibleInputs = [];
+                for (const input of inputs) {
+                    if (await input.isVisible()) visibleInputs.push(input);
+                }
+
+                if (visibleInputs.length > 0) {
+                    if (visibleInputs.length === otpCode.length) {
+                        logger.info(`Detected split OTP boxes (${visibleInputs.length} boxes). Filling individually...`);
+                        for (let i = 0; i < otpCode.length; i++) {
+                            await visibleInputs[i].fill(otpCode[i]);
+                        }
+                    } else {
+                        logger.info('Detected standard OTP box. Typing sequentially...');
+                        // Prefer the first one that looks like an OTP field if there are multiple
+                        let targetInput = visibleInputs[0];
+                        for (const input of visibleInputs) {
+                            const name = await input.getAttribute('name') || '';
+                            const id = await input.getAttribute('id') || '';
+                            if (name.includes('code') || name.includes('verify') || id.includes('code') || id.includes('verify') || id.includes('security')) {
+                                targetInput = input;
+                                break;
+                            }
+                        }
+                        await targetInput.click();
+                        await targetInput.fill('');
+                        await page.keyboard.type(otpCode, { delay: 100 });
+                    }
+                } else {
+                    logger.error('Found OTP but could not find any input boxes on the page.');
+                    return { success: false, error: 'Failed to find OTP input box.' };
+                }
             }
+            // Click submit/verify after filling the OTP
+            await page.click('button[type="submit"], button:has-text("Verify"), button:has-text("Submit"), button:has-text("Confirm")').catch(() => { });
+            await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => { });
         } else {
             logger.error('Failed to receive OTP within 60 seconds.');
             return { success: false, error: 'OTP Timeout' };
