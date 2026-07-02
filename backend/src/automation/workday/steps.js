@@ -282,29 +282,48 @@ const handleMyExperience = async (page, userInfo, tailoredResume, tempResumePath
 
     // Fill From/To dates using XPath to find the input following the label
     // Workday DOM often breaks standard getByLabel so we find the label element and then the next input
-    const fromInputXpath = page.locator('xpath=//label[contains(string(), "From")]/following::input[1]').first();
+    const fromInputXpath = page.locator('xpath=//label[contains(string(), "From")]/following::input').nth(0);
     if (await fromInputXpath.isVisible().catch(()=>false)) {
         await fromInputXpath.click({ force: true }).catch(()=>{});
         await fromInputXpath.fill('').catch(()=>{});
         await page.keyboard.type('06/2022', { delay: 50 });
         await page.keyboard.press('Tab');
-        logger.info('✅ Filled Work Exp From date');
+        logger.info('✅ Filled Work Exp From date (XPath)');
         filledSomething = true;
     } else {
-        logger.warn('❌ Work Exp From date not found');
+        // Ultimate fallback: click on the text "MM/YYYY" itself to focus the input!
+        const mmYyyyElements = await page.getByText('MM/YYYY', { exact: false }).all();
+        if (mmYyyyElements.length >= 1) {
+            await mmYyyyElements[0].click({ force: true }).catch(()=>{});
+            await page.keyboard.type('06/2022', { delay: 50 });
+            await page.keyboard.press('Tab');
+            logger.info('✅ Filled Work Exp From date (Text Click)');
+            filledSomething = true;
+        } else {
+            logger.warn('❌ Work Exp From date not found');
+        }
     }
     
     // The "To" label can be just "To" or "To*"
-    const toInputXpath = page.locator('xpath=//label[starts-with(normalize-space(string()), "To")]/following::input[1]').first();
+    const toInputXpath = page.locator('xpath=//label[starts-with(normalize-space(string()), "To")]/following::input').nth(0);
     if (await toInputXpath.isVisible().catch(()=>false)) {
         await toInputXpath.click({ force: true }).catch(()=>{});
         await toInputXpath.fill('').catch(()=>{});
         await page.keyboard.type('05/2024', { delay: 50 });
         await page.keyboard.press('Tab');
-        logger.info('✅ Filled Work Exp To date');
+        logger.info('✅ Filled Work Exp To date (XPath)');
         filledSomething = true;
     } else {
-        logger.warn('❌ Work Exp To date not found');
+        const mmYyyyElements = await page.getByText('MM/YYYY', { exact: false }).all();
+        if (mmYyyyElements.length >= 2) {
+            await mmYyyyElements[1].click({ force: true }).catch(()=>{});
+            await page.keyboard.type('05/2024', { delay: 50 });
+            await page.keyboard.press('Tab');
+            logger.info('✅ Filled Work Exp To date (Text Click)');
+            filledSomething = true;
+        } else {
+            logger.warn('❌ Work Exp To date not found');
+        }
     }
 
     // Fill Role Description (textarea at the bottom of Work Experience)
@@ -511,35 +530,53 @@ const handleMyExperience = async (page, userInfo, tailoredResume, tempResumePath
     
     // The Education section might have multiple From/To labels on the page now (because of Work Experience)
     // So we look for labels specifically under the Education section, or just use the LAST ones on the page.
-    const allFromInputs = await page.locator('xpath=//label[contains(string(), "From")]/following::input[1]').all();
-    if (allFromInputs.length > 0) {
+    const allFromInputs = await page.locator('xpath=//label[contains(string(), "From")]/following::input').all();
+    if (allFromInputs.length > 0 && await allFromInputs[allFromInputs.length - 1].isVisible().catch(()=>false)) {
         const eduFromInput = allFromInputs[allFromInputs.length - 1]; // Use the last one
         await eduFromInput.click({ force: true }).catch(()=>{});
         await eduFromInput.fill('').catch(()=>{});
         await page.keyboard.type('2019', { delay: 50 });
         await page.keyboard.press('Tab');
-        logger.info('✅ Filled Education From year');
+        logger.info('✅ Filled Education From year (XPath)');
         filledSomething = true;
     } else {
-        logger.warn('❌ Education From year not found');
+        const yyyyElements = await page.getByText('YYYY', { exact: true }).all();
+        if (yyyyElements.length >= 1) {
+            await yyyyElements[0].click({ force: true }).catch(()=>{});
+            await page.keyboard.type('2019', { delay: 50 });
+            await page.keyboard.press('Tab');
+            logger.info('✅ Filled Education From year (Text Click)');
+            filledSomething = true;
+        } else {
+            logger.warn('❌ Education From year not found');
+        }
     }
     
-    const allToInputs = await page.locator('xpath=//label[starts-with(normalize-space(string()), "To")]/following::input[1]').all();
-    if (allToInputs.length > 0) {
+    const allToInputs = await page.locator('xpath=//label[starts-with(normalize-space(string()), "To")]/following::input').all();
+    if (allToInputs.length > 0 && await allToInputs[allToInputs.length - 1].isVisible().catch(()=>false)) {
         const eduToInput = allToInputs[allToInputs.length - 1]; // Use the last one
         await eduToInput.click({ force: true }).catch(()=>{});
         await eduToInput.fill('').catch(()=>{});
         await page.keyboard.type('2023', { delay: 50 });
         await page.keyboard.press('Tab');
-        logger.info('✅ Filled Education To year');
+        logger.info('✅ Filled Education To year (XPath)');
         filledSomething = true;
     } else {
-        logger.warn('❌ Education To year not found');
+        const yyyyElements = await page.getByText('YYYY', { exact: true }).all();
+        if (yyyyElements.length >= 2) {
+            await yyyyElements[1].click({ force: true }).catch(()=>{});
+            await page.keyboard.type('2023', { delay: 50 });
+            await page.keyboard.press('Tab');
+            logger.info('✅ Filled Education To year (Text Click)');
+            filledSomething = true;
+        } else {
+            logger.warn('❌ Education To year not found');
+        }
     }
 
     // ========== LINKEDIN / SOCIAL URLs ==========
     logger.info('Attempting to fill LinkedIn URL...');
-    let linkedinInput = page.locator('xpath=//label[contains(string(), "LinkedIn profile")]/following::input[1]').first();
+    let linkedinInput = page.locator('xpath=//label[contains(string(), "LinkedIn profile")]/following::input').nth(0);
     
     if (!(await linkedinInput.isVisible().catch(()=>false))) {
         linkedinInput = page.getByLabel('LinkedIn', { exact: false }).first();
@@ -549,15 +586,17 @@ const handleMyExperience = async (page, userInfo, tailoredResume, tempResumePath
     }
     
     if (await linkedinInput.isVisible().catch(()=>false)) {
-        let linkedinUrl = userInfo.linkedin || 'https://www.linkedin.com/in/mock-profile';
-        // Workday validation requires the URL to start with http:// or https://
-        if (linkedinUrl && !linkedinUrl.startsWith('http')) {
+        let linkedinUrl = userInfo.linkedin;
+        // Strict Workday validation requires the URL to start with https://www.linkedin.com/in/
+        if (!linkedinUrl || !linkedinUrl.includes('linkedin.com/in/')) {
+            linkedinUrl = 'https://www.linkedin.com/in/johndoe'; // Enforce strict mock data
+        } else if (!linkedinUrl.startsWith('http')) {
             linkedinUrl = 'https://' + linkedinUrl;
         }
         await linkedinInput.click({ force: true }).catch(()=>{});
-        await linkedinInput.fill('');
+        await linkedinInput.fill(''); // Clear first
         await page.keyboard.type(linkedinUrl, { delay: 50 });
-        logger.info('✅ Filled LinkedIn URL: ' + linkedinUrl);
+        logger.info('✅ Filled LinkedIn URL (Strict): ' + linkedinUrl);
         filledSomething = true;
     }
 
