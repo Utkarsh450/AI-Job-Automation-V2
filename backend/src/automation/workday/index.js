@@ -73,17 +73,101 @@ const applyToWorkday = async (jobUrl, userInfo, pdfBuffer, tailoredResume, userI
         // 4. Upload Resume (if it asks for autofill)
         await uploadResume(page, tempResumePath);
 
-        // 5. My Information Step
-        await fillMyInformation(page, userInfo);
+        // Dynamic Step Navigation
+        let reachedReview = false;
+        let maxSteps = 15; // fail-safe to prevent infinite loops
+        let lastStepHeader = '';
+        let sameStepCount = 0;
 
-        // 6. My Experience Step
-        await handleMyExperience(page, userInfo, tailoredResume);
+        while (!reachedReview && maxSteps > 0) {
+            maxSteps--;
+            await page.waitForTimeout(3000); // Wait for page load
 
-        // 7. Application Questions Step
-        await fillApplicationQuestions(page, userInfo, tailoredResume);
+            const headerText = await page.evaluate(() => {
+                // 1. Prioritize active step in progress bar
+                const activeStep = document.querySelector('[aria-current="step"], [aria-current="true"], [data-automation-id="activeStep"]');
+                if (activeStep && activeStep.innerText.trim().length > 0) {
+                    return activeStep.innerText.trim();
+                }
+                
+                // 2. Check all h2 and h3 elements for known step keywords
+                const headings = Array.from(document.querySelectorAll('h2, h3'));
+                const knownSteps = ['My Information', 'My Experience', 'Application Questions', 'Voluntary Disclosures', 'Self Identify', 'Review'];
+                for (const h of headings) {
+                    const text = h.innerText.trim();
+                    if (knownSteps.some(step => text.includes(step))) {
+                        return text;
+                    }
+                }
+                
+                return '';
+            });
 
-        // 8. Voluntary Disclosures Step
-        await fillVoluntaryDisclosures(page, userInfo);
+            logger.info(`Detected current step: ${headerText}`);
+
+            // Track if we're stuck on the same step
+            if (headerText === lastStepHeader) {
+                sameStepCount++;
+                logger.warn(`Same step "${headerText}" detected ${sameStepCount} time(s) in a row.`);
+                if (sameStepCount >= 3) {
+                    logger.error(`🚫 STUCK on "${headerText}" for 3 iterations. Force-skipping to prevent infinite loop.`);
+                    // Take error screenshot
+                    const stuckScreenshot = path.join(os.tmpdir(), `stuck-${headerText.replace(/\s/g, '_')}-${Date.now()}.png`);
+                    await page.screenshot({ path: stuckScreenshot, fullPage: true }).catch(()=>{});
+                    logger.error(`Stuck screenshot saved: ${stuckScreenshot}`);
+                    
+                    // Force click next to try to move past
+                    const nextBtn = page.locator('button[data-automation-id="bottom-navigation-next-button"], button:has-text("Next"), button:has-text("Save and Continue")').first();
+                    if (await nextBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                        await nextBtn.click();
+                        await page.waitForTimeout(3000);
+                    }
+                    // If still stuck after 4 tries, bail out
+                    if (sameStepCount >= 4) {
+                        throw new Error(`Stuck on "${headerText}" - could not fill required fields. Check debug screenshots in temp folder.`);
+                    }
+                    continue;
+                }
+            } else {
+                sameStepCount = 0;
+                lastStepHeader = headerText;
+            }
+
+            if (headerText.includes('My Information')) {
+                await fillMyInformation(page, userInfo);
+            } else if (headerText.includes('My Experience')) {
+                await handleMyExperience(page, userInfo, tailoredResume, tempResumePath);
+            } else if (headerText.includes('Application Questions')) {
+                await fillApplicationQuestions(page, userInfo, tailoredResume);
+            } else if (headerText.includes('Voluntary Disclosures') || headerText.includes('Self Identify') || headerText.includes('Disclosures')) {
+                await fillVoluntaryDisclosures(page, userInfo);
+            } else if (headerText.includes('Review')) {
+                reachedReview = true;
+                break;
+            } else if (headerText === '') {
+                logger.warn('Could not detect step header. Trying to click Next if available...');
+                const nextBtn = page.locator('button[data-automation-id="bottom-navigation-next-button"], button:has-text("Next"), button:has-text("Save and Continue")').first();
+                if (await nextBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await nextBtn.click();
+                } else {
+                    // Check if Review page loaded without a clear header
+                    if (await page.locator('button:has-text("Submit")').isVisible().catch(()=>false)) {
+                        reachedReview = true;
+                        break;
+                    }
+                }
+            } else {
+                logger.warn(`Unknown step: ${headerText}. Attempting to just click Next.`);
+                const nextBtn = page.locator('button[data-automation-id="bottom-navigation-next-button"], button:has-text("Next"), button:has-text("Save and Continue")').first();
+                if (await nextBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await nextBtn.click();
+                }
+            }
+        }
+
+        if (!reachedReview) {
+            throw new Error('Failed to reach Review page after 15 steps.');
+        }
 
         // 9. Review and Submit
         const result = await reviewAndSubmit(page);

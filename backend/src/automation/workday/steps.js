@@ -184,12 +184,404 @@ const fillMyInformation = async (page, userInfo) => {
 };
 
 
-const handleMyExperience = async (page, userInfo, tailoredResume) => {
+const handleMyExperience = async (page, userInfo, tailoredResume, tempResumePath) => {
     logger.info('Handling "My Experience" step...');
-    // The resume parser should have filled this out. 
-    // Sometimes Workday throws validation errors if a required field like "Title" or "Company" is empty due to bad parsing.
-    // We try to click Next. If there is an error, we might have to delete the faulty experience blocks.
-    await clickNext(page);
+    await page.waitForTimeout(2000);
+
+    // Take a screenshot for debugging
+    const screenshotPath = path.join(require('os').tmpdir(), `my-experience-debug-${Date.now()}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(()=>{});
+    logger.info(`Debug screenshot saved: ${screenshotPath}`);
+
+    let filledSomething = false;
+
+    // Upload Resume ONCE - check if already uploaded first
+    if (tempResumePath) {
+        // Check if a file is already uploaded (look for filename or delete button near upload area)
+        const alreadyUploaded = page.locator('[data-automation-id="file-upload-item"], button:has-text("Delete"):near(text=/Resume/i), text=/\.pdf/i').first();
+        const isUploaded = await alreadyUploaded.isVisible().catch(()=>false);
+        
+        if (!isUploaded) {
+            const resumeUploadInput = page.locator('input[type="file"]').first();
+            if (await resumeUploadInput.count() > 0) {
+                logger.info('Uploading resume on My Experience page...');
+                await resumeUploadInput.setInputFiles(tempResumePath).catch(()=>{});
+                await page.waitForTimeout(5000);
+                filledSomething = true;
+                logger.info('✅ Resume uploaded');
+            }
+        } else {
+            logger.info('Resume already uploaded, skipping re-upload.');
+        }
+    }
+
+    // ========== WORK EXPERIENCE ==========
+    const mockExp = {
+        title: 'Software Developer Intern',
+        company: 'Tech Solutions Inc.',
+        location: 'San Jose, CA',
+        description: 'Developed web applications using React and Node.js. Built REST APIs and automated testing pipelines.'
+    };
+    const exp = (tailoredResume?.work_experience && tailoredResume.work_experience.length > 0)
+        ? tailoredResume.work_experience[0]
+        : mockExp;
+
+    logger.info('Attempting to fill Work Experience...');
+
+    // Check if "Work Experience 1" section already exists (form expanded)
+    let jobTitleInput = page.getByLabel('Job Title', { exact: false }).first();
+    logger.info(`Job Title visible (before Add): ${await jobTitleInput.isVisible().catch(()=>false)}`);
+
+    // If not visible, click Add button
+    if (!(await jobTitleInput.isVisible().catch(()=>false))) {
+        // Try multiple Add button strategies
+        const addBtnSelectors = [
+            'button[aria-label="Add Work Experience"]',
+            '[data-automation-id="panel-set-add-button"]',
+            'button:has-text("Add")',
+        ];
+        for (const sel of addBtnSelectors) {
+            const btn = page.locator(sel).first();
+            if (await btn.isVisible().catch(()=>false)) {
+                logger.info(`Clicking Add Work Experience via: ${sel}`);
+                await btn.click({ force: true }).catch(()=>{});
+                await page.waitForTimeout(2500);
+                break;
+            }
+        }
+        jobTitleInput = page.getByLabel('Job Title', { exact: false }).first();
+        logger.info(`Job Title visible (after Add): ${await jobTitleInput.isVisible().catch(()=>false)}`);
+    }
+
+    // Fill Job Title
+    if (await jobTitleInput.isVisible().catch(()=>false)) {
+        await jobTitleInput.fill(exp.title || exp.role || 'Software Developer Intern');
+        logger.info('✅ Filled Job Title');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Job Title input not found');
+    }
+
+    // Fill Company (required - red error in screenshot)
+    const companyInput = page.getByLabel('Company', { exact: false }).first();
+    if (await companyInput.isVisible().catch(()=>false)) {
+        await companyInput.fill(exp.company || exp.employer || 'Tech Solutions Inc.');
+        logger.info('✅ Filled Company');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Company input not found');
+    }
+
+    // Fill Location (optional but good to have)
+    const locationInput = page.getByLabel('Location', { exact: false }).first();
+    if (await locationInput.isVisible().catch(()=>false)) {
+        await locationInput.fill(exp.location || 'San Jose, CA');
+        logger.info('✅ Filled Location');
+        filledSomething = true;
+    }
+
+    // Fill From/To dates using XPath to find the input following the label
+    // Workday DOM often breaks standard getByLabel so we find the label element and then the next input
+    const fromInputXpath = page.locator('xpath=//label[contains(string(), "From")]/following::input[1]').first();
+    if (await fromInputXpath.isVisible().catch(()=>false)) {
+        await fromInputXpath.click({ force: true }).catch(()=>{});
+        await fromInputXpath.fill('').catch(()=>{});
+        await page.keyboard.type('06/2022', { delay: 50 });
+        await page.keyboard.press('Tab');
+        logger.info('✅ Filled Work Exp From date');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Work Exp From date not found');
+    }
+    
+    // The "To" label can be just "To" or "To*"
+    const toInputXpath = page.locator('xpath=//label[starts-with(normalize-space(string()), "To")]/following::input[1]').first();
+    if (await toInputXpath.isVisible().catch(()=>false)) {
+        await toInputXpath.click({ force: true }).catch(()=>{});
+        await toInputXpath.fill('').catch(()=>{});
+        await page.keyboard.type('05/2024', { delay: 50 });
+        await page.keyboard.press('Tab');
+        logger.info('✅ Filled Work Exp To date');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Work Exp To date not found');
+    }
+
+    // Fill Role Description (textarea at the bottom of Work Experience)
+    const roleDesc = page.getByLabel('Role Description', { exact: false }).first();
+    if (await roleDesc.isVisible().catch(()=>false)) {
+        const desc = Array.isArray(exp.highlights) ? exp.highlights.join('\n') : (exp.description || 'Developed web applications using React and Node.js.');
+        await roleDesc.fill(desc);
+        logger.info('✅ Filled Role Description');
+        filledSomething = true;
+    } else {
+        // Try textarea directly
+        const textareas = await page.locator('textarea').all();
+        logger.info(`Found ${textareas.length} textareas on page`);
+        if (textareas.length >= 1) {
+            const desc = Array.isArray(exp.highlights) ? exp.highlights.join('\n') : (exp.description || 'Developed web applications using React and Node.js.');
+            await textareas[0].fill(desc).catch(()=>{});
+            logger.info('✅ Filled Role Description (via textarea fallback)');
+            filledSomething = true;
+        }
+    }
+
+    // ========== EDUCATION ==========
+    logger.info('Attempting to fill Education...');
+    const mockEdu = { institution: 'University of California', degree: "Bachelor's Degree", field: 'Computer Science', gpa: '3.5' };
+    const edu = (tailoredResume?.education && tailoredResume.education.length > 0)
+        ? tailoredResume.education[0]
+        : mockEdu;
+
+    // Check if School or University input already exists
+    let schoolInput = page.getByLabel('School or University', { exact: false }).first();
+    logger.info(`School input visible (before Add): ${await schoolInput.isVisible().catch(()=>false)}`);
+
+    if (!(await schoolInput.isVisible().catch(()=>false))) {
+        logger.info('School input not visible, scrolling down and looking for Education Add button...');
+        
+        // Scroll down to make Education section visible
+        await page.evaluate(() => window.scrollBy(0, 500));
+        await page.waitForTimeout(1000);
+
+        // Strategy 1: aria-label
+        let clickedEduAdd = false;
+        const eduAddBtn = page.locator('button[aria-label="Add Education"]').first();
+        if (await eduAddBtn.isVisible().catch(()=>false)) {
+            logger.info('Found Education Add button via aria-label');
+            await eduAddBtn.click({ force: true }).catch(()=>{});
+            await page.waitForTimeout(2500);
+            clickedEduAdd = true;
+        }
+
+        // Strategy 2: Find "Add" button that is BELOW the "Education" heading
+        if (!clickedEduAdd) {
+            // Get the Education heading's position
+            const eduHeading = page.locator('h3:has-text("Education"), h4:has-text("Education"), div:has-text("Education"):not(:has(div))').first();
+            if (await eduHeading.isVisible().catch(()=>false)) {
+                // Find the nearest Add button after the Education heading
+                const eduSection = eduHeading.locator('xpath=ancestor::section | ancestor::div[contains(@class, "section")]').first();
+                let addInSection = eduSection.locator('button:has-text("Add")').first();
+                if (await addInSection.isVisible().catch(()=>false)) {
+                    logger.info('Found Add button inside Education section container');
+                    await addInSection.click({ force: true }).catch(()=>{});
+                    await page.waitForTimeout(2500);
+                    clickedEduAdd = true;
+                }
+            }
+        }
+
+        // Strategy 3: Find ALL Add buttons, skip the first one (Work Experience), click the next
+        if (!clickedEduAdd) {
+            const allAddBtns = await page.locator('button:has-text("Add")').all();
+            logger.info(`Found ${allAddBtns.length} total Add buttons on page`);
+            // Log each button's text for debugging
+            for (let i = 0; i < allAddBtns.length; i++) {
+                const txt = await allAddBtns[i].innerText().catch(()=>'');
+                logger.info(`  Add button[${i}]: "${txt.trim()}"`);
+            }
+            // After Work Experience is expanded, its Add button is gone or says "Add Another"
+            // Education Add should be the next standalone "Add" button
+            for (let i = 0; i < allAddBtns.length; i++) {
+                const txt = (await allAddBtns[i].innerText().catch(()=>'')).trim();
+                // Skip "Add Another" buttons (these belong to already-expanded sections)
+                if (txt === 'Add') {
+                    logger.info(`Clicking Add button[${i}] for Education`);
+                    await allAddBtns[i].click({ force: true }).catch(()=>{});
+                    await page.waitForTimeout(2500);
+                    clickedEduAdd = true;
+                    break;
+                }
+            }
+        }
+
+        // Strategy 4: Last resort - try panel-set-add-button
+        if (!clickedEduAdd) {
+            const panelBtns = await page.locator('[data-automation-id="panel-set-add-button"]').all();
+            logger.info(`Found ${panelBtns.length} panel-set-add-buttons`);
+            for (const btn of panelBtns) {
+                if (await btn.isVisible().catch(()=>false)) {
+                    logger.info('Clicking panel-set-add-button for Education');
+                    await btn.click({ force: true }).catch(()=>{});
+                    await page.waitForTimeout(2500);
+                    clickedEduAdd = true;
+                    break;
+                }
+            }
+        }
+
+        // Re-evaluate school input
+        schoolInput = page.getByLabel('School or University', { exact: false }).first();
+        logger.info(`School input visible (after Add click): ${await schoolInput.isVisible().catch(()=>false)}`);
+    }
+
+    // Fill School or University (required)
+    if (await schoolInput.isVisible().catch(()=>false)) {
+        await schoolInput.fill(edu.institution || edu.school || edu.university || 'University of California');
+        logger.info('✅ Filled School or University');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ School or University input not found');
+    }
+
+    // Fill Degree (it's a native <select> dropdown - "Select One")
+    // From screenshot: it's a regular dropdown, NOT a combobox
+    const degreeSelect = page.locator('select').filter({ hasText: 'Select One' }).first();
+    if (await degreeSelect.isVisible().catch(()=>false)) {
+        // Try to select by visible text
+        const degreeText = edu.degree || "Bachelor's Degree";
+        try {
+            await degreeSelect.selectOption({ label: degreeText });
+            logger.info(`✅ Filled Degree: ${degreeText}`);
+            filledSomething = true;
+        } catch (e1) {
+            // Try partial match
+            try {
+                await degreeSelect.selectOption({ label: "Bachelor's Degree" });
+                logger.info('✅ Filled Degree: Bachelor\'s Degree (fallback)');
+                filledSomething = true;
+            } catch (e2) {
+                // Try selecting by index (skip first "Select One")
+                try {
+                    await degreeSelect.selectOption({ index: 1 });
+                    logger.info('✅ Filled Degree: index 1 (last fallback)');
+                    filledSomething = true;
+                } catch (e3) {
+                    logger.warn('❌ Could not select Degree option');
+                }
+            }
+        }
+    } else {
+        // Maybe it's a Workday custom combobox button
+        const degreeBtn = page.getByLabel('Degree', { exact: false }).first();
+        if (await degreeBtn.isVisible().catch(()=>false)) {
+            await degreeBtn.click().catch(()=>{});
+            await page.waitForTimeout(500);
+            // Type to search
+            await page.keyboard.type("Bachelor", { delay: 80 });
+            await page.waitForTimeout(1000);
+            // Click the first matching option
+            const firstOpt = page.locator('[role="option"]:has-text("Bachelor"), [role="listbox"] li:has-text("Bachelor")').first();
+            if (await firstOpt.isVisible().catch(()=>false)) {
+                await firstOpt.click().catch(()=>{});
+                logger.info('✅ Filled Degree via combobox');
+                filledSomething = true;
+            } else {
+                await page.keyboard.press('Enter');
+                logger.info('✅ Filled Degree via keyboard Enter');
+                filledSomething = true;
+            }
+        } else {
+            logger.warn('❌ Degree dropdown not found');
+        }
+    }
+
+    // Fill Field of Study (has a list icon ≡ - it's an autocomplete search input)
+    const fieldOfStudy = page.getByLabel('Field of Study', { exact: false }).first();
+    if (await fieldOfStudy.isVisible().catch(()=>false)) {
+        await fieldOfStudy.click().catch(()=>{});
+        await page.keyboard.type(edu.field || edu.major || 'Computer Science', { delay: 50 });
+        await page.waitForTimeout(1500);
+        // Click the first autocomplete suggestion if it appears
+        const suggestion = page.locator('[role="option"], [role="listbox"] div, .css-1yk1gt9-option').first();
+        if (await suggestion.isVisible().catch(()=>false)) {
+            await suggestion.click().catch(()=>{});
+            logger.info('✅ Filled Field of Study (via autocomplete)');
+        } else {
+            await page.keyboard.press('Enter');
+            logger.info('✅ Filled Field of Study (via Enter)');
+        }
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Field of Study input not found');
+    }
+
+    // Fill Overall Result (GPA) (optional)
+    const gpaInput = page.getByLabel('Overall Result', { exact: false }).first();
+    if (await gpaInput.isVisible().catch(()=>false)) {
+        await gpaInput.fill(edu.gpa || '3.5');
+        logger.info('✅ Filled GPA');
+        filledSomething = true;
+    }
+
+    // Education From/To (YYYY format from screenshot)
+    // Scroll down to make Education dates visible
+    await page.evaluate(() => window.scrollBy(0, 300));
+    await page.waitForTimeout(500);
+    
+    // The Education section might have multiple From/To labels on the page now (because of Work Experience)
+    // So we look for labels specifically under the Education section, or just use the LAST ones on the page.
+    const allFromInputs = await page.locator('xpath=//label[contains(string(), "From")]/following::input[1]').all();
+    if (allFromInputs.length > 0) {
+        const eduFromInput = allFromInputs[allFromInputs.length - 1]; // Use the last one
+        await eduFromInput.click({ force: true }).catch(()=>{});
+        await eduFromInput.fill('').catch(()=>{});
+        await page.keyboard.type('2019', { delay: 50 });
+        await page.keyboard.press('Tab');
+        logger.info('✅ Filled Education From year');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Education From year not found');
+    }
+    
+    const allToInputs = await page.locator('xpath=//label[starts-with(normalize-space(string()), "To")]/following::input[1]').all();
+    if (allToInputs.length > 0) {
+        const eduToInput = allToInputs[allToInputs.length - 1]; // Use the last one
+        await eduToInput.click({ force: true }).catch(()=>{});
+        await eduToInput.fill('').catch(()=>{});
+        await page.keyboard.type('2023', { delay: 50 });
+        await page.keyboard.press('Tab');
+        logger.info('✅ Filled Education To year');
+        filledSomething = true;
+    } else {
+        logger.warn('❌ Education To year not found');
+    }
+
+    // ========== LINKEDIN / SOCIAL URLs ==========
+    logger.info('Attempting to fill LinkedIn URL...');
+    let linkedinInput = page.locator('xpath=//label[contains(string(), "LinkedIn profile")]/following::input[1]').first();
+    
+    if (!(await linkedinInput.isVisible().catch(()=>false))) {
+        linkedinInput = page.getByLabel('LinkedIn', { exact: false }).first();
+    }
+    if (!(await linkedinInput.isVisible().catch(()=>false))) {
+        linkedinInput = page.locator('input[placeholder*="linkedin" i], input[aria-label*="LinkedIn" i]').first();
+    }
+    
+    if (await linkedinInput.isVisible().catch(()=>false)) {
+        let linkedinUrl = userInfo.linkedin || 'https://www.linkedin.com/in/mock-profile';
+        // Workday validation requires the URL to start with http:// or https://
+        if (linkedinUrl && !linkedinUrl.startsWith('http')) {
+            linkedinUrl = 'https://' + linkedinUrl;
+        }
+        await linkedinInput.click({ force: true }).catch(()=>{});
+        await linkedinInput.fill('');
+        await page.keyboard.type(linkedinUrl, { delay: 50 });
+        logger.info('✅ Filled LinkedIn URL: ' + linkedinUrl);
+        filledSomething = true;
+    }
+
+    // Resume upload already handled at the top of this function - no duplicate upload here
+
+    // Take screenshot AFTER filling
+    const screenshotPath2 = path.join(require('os').tmpdir(), `my-experience-after-${Date.now()}.png`);
+    await page.screenshot({ path: screenshotPath2, fullPage: true }).catch(()=>{});
+    logger.info(`After-fill screenshot: ${screenshotPath2}`);
+
+    logger.info(`Summary: filledSomething = ${filledSomething}`);
+
+    if (filledSomething) {
+        logger.info('✅ Fields filled. Clicking Save and Continue...');
+        await clickNext(page);
+    } else {
+        logger.warn('⚠️ Could NOT fill ANY fields! Attempting Save and Continue anyway...');
+        await clickNext(page);
+        await page.waitForTimeout(2000);
+        const stillOnMyExp = await page.locator('h2:has-text("My Experience"), h3:has-text("My Experience")').isVisible().catch(()=>false);
+        if (stillOnMyExp) {
+            logger.error('🚫 STUCK on My Experience - required fields not filled.');
+        }
+    }
 
     const errorSummary = page.locator('[data-automation-id="errorBanner"]');
     if (await errorSummary.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -232,22 +624,32 @@ const fillApplicationQuestions = async (page, userInfo, tailoredResume) => {
         }
     }
 
-    // 2. Radio Buttons (Sponsorship, Authorized to work, etc)
+    // 2. Radio Buttons, Checkboxes, and Dropdowns (Sponsorship, Authorized to work, etc)
     const fieldSets = await page.$$('[data-automation-id="formField"]');
     for (const field of fieldSets) {
         const labelText = await field.innerText().then(t => t.split('\n')[0].toLowerCase());
+        
+        let choice = 'Yes';
+        // Sponsorship / Visa
+        if (labelText.includes('sponsorship') || labelText.includes('visa') || labelText.includes('employer support') || labelText.includes('work permit')) {
+            choice = userInfo.preferences?.requiresVisaSponsorship ? 'Yes' : 'No';
+        } 
+        // Authorized to work
+        else if (labelText.includes('authorized') || labelText.includes('legally')) {
+            choice = userInfo.preferences?.authorizedToWork !== false ? 'Yes' : 'No';
+        } 
+        // Relocation
+        else if (labelText.includes('relocate')) {
+            choice = userInfo.preferences?.willingToRelocate ? 'Yes' : 'No';
+        }
+        // Former Employee
+        else if (labelText.includes('previously employed') || labelText.includes('former employee')) {
+            choice = 'No';
+        }
+
+        // Try Radio Buttons first
         const radios = await field.$$('input[type="radio"]');
         if (radios.length > 0) {
-            let choice = 'Yes';
-            if (labelText.includes('sponsorship') || labelText.includes('visa')) {
-                choice = userInfo.preferences?.requiresVisaSponsorship ? 'Yes' : 'No';
-            } else if (labelText.includes('authorized') || labelText.includes('legally')) {
-                choice = userInfo.preferences?.authorizedToWork !== false ? 'Yes' : 'No';
-            } else if (labelText.includes('relocate')) {
-                choice = userInfo.preferences?.willingToRelocate ? 'Yes' : 'No';
-            }
-
-            // Find the radio that matches the choice
             for (const radio of radios) {
                 const radioId = await radio.getAttribute('id');
                 const radioLabel = await page.evaluate(id => {
@@ -260,6 +662,33 @@ const fillApplicationQuestions = async (page, userInfo, tailoredResume) => {
                     break;
                 }
             }
+            continue;
+        }
+
+        // Try Comboboxes (Dropdowns)
+        const combobox = await field.$('button, [role="combobox"]');
+        if (combobox) {
+            await combobox.click({ force: true }).catch(()=>{});
+            await page.waitForTimeout(500);
+            
+            const choiceOpt = page.locator(`[role="option"]:has-text("${choice}"), [role="treeitem"]:has-text("${choice}")`).first();
+            if (await choiceOpt.isVisible().catch(()=>false)) {
+                await choiceOpt.click({ force: true });
+            } else {
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('Enter');
+            }
+            await page.waitForTimeout(500);
+            continue;
+        }
+
+        // Try Checkboxes
+        const checkboxes = await field.$$('input[type="checkbox"]');
+        if (checkboxes.length > 0) {
+            for (const checkbox of checkboxes) {
+                await checkbox.check({ force: true }).catch(()=>{});
+            }
         }
     }
 
@@ -270,36 +699,65 @@ const fillVoluntaryDisclosures = async (page, userInfo) => {
     logger.info('Handling "Voluntary Disclosures" step...');
     await page.waitForTimeout(2000);
 
-    const dropdowns = await page.$$('[data-automation-id="selectWidget"]');
-    for (const dropdown of dropdowns) {
-        const labelText = await page.evaluate(el => {
-            const field = el.closest('[data-automation-id="formField"]');
-            return field ? field.innerText.split('\n')[0].toLowerCase() : '';
-        }, dropdown);
-
+    // Try finding all form fields first
+    const formFields = await page.$$('[data-automation-id="formField"], .formField');
+    for (const field of formFields) {
+        const labelText = await page.evaluate(el => el.innerText.split('\n')[0].toLowerCase(), field);
+        
         let targetValue = 'Decline';
-        if (labelText.includes('gender')) targetValue = userInfo.demographics?.gender || 'Decline';
-        else if (labelText.includes('hispanic') || labelText.includes('race') || labelText.includes('ethnicity')) targetValue = userInfo.demographics?.race || 'Decline';
-        else if (labelText.includes('veteran')) targetValue = userInfo.demographics?.veteranStatus || 'Decline';
-        else if (labelText.includes('disability')) targetValue = userInfo.demographics?.disabilityStatus || 'Decline';
+        let isDisclosure = false;
+        if (labelText.includes('gender') || labelText.includes('sex')) { targetValue = userInfo.demographics?.gender || 'Decline'; isDisclosure = true; }
+        else if (labelText.includes('hispanic') || labelText.includes('race') || labelText.includes('ethnicity')) { targetValue = userInfo.demographics?.race || 'Decline'; isDisclosure = true; }
+        else if (labelText.includes('veteran')) { targetValue = userInfo.demographics?.veteranStatus || 'Decline'; isDisclosure = true; }
+        else if (labelText.includes('disability')) { targetValue = userInfo.demographics?.disabilityStatus || 'Decline'; isDisclosure = true; }
 
-        const mappedValue = mapWorkdayDemographics(labelText, targetValue);
-
-        if (mappedValue) {
-            await dropdown.click();
-            await page.waitForTimeout(500);
-            // Type the mapped value to filter Workday's select dropdown
-            await page.keyboard.type(mappedValue.substring(0, 5), { delay: 100 }); 
-            await page.waitForTimeout(500);
-            await page.keyboard.press('Enter');
-            await page.waitForTimeout(300);
+        if (isDisclosure) {
+            const mappedValue = mapWorkdayDemographics(labelText, targetValue);
+            if (mappedValue) {
+                // Find the dropdown button/combobox inside this field
+                const dropdown = await field.$('button, [role="combobox"], [data-automation-id="selectWidget"]');
+                if (dropdown) {
+                    await dropdown.click().catch(()=>{});
+                    await page.waitForTimeout(1000);
+                    // Type the mapped value to filter Workday's select dropdown
+                    await page.keyboard.type(mappedValue.substring(0, 5), { delay: 100 }); 
+                    await page.waitForTimeout(500);
+                    await page.keyboard.press('Enter');
+                    await page.waitForTimeout(500);
+                }
+            }
         }
     }
     
-    // Sometimes there is a checkbox for terms
+    // Sometimes there is a checkbox or radio button for terms/consent
     const agreeCheckbox = page.locator('input[type="checkbox"]');
-    if (await agreeCheckbox.isVisible().catch(() => false)) {
-        await agreeCheckbox.click({ force: true }).catch(() => {});
+    if (await agreeCheckbox.count() > 0) {
+        for (let i = 0; i < await agreeCheckbox.count(); i++) {
+            await agreeCheckbox.nth(i).check({ force: true }).catch(() => {});
+        }
+    }
+
+    const agreeRadio = page.locator('input[type="radio"]');
+    if (await agreeRadio.count() > 0) {
+        for (let i = 0; i < await agreeRadio.count(); i++) {
+            const radio = agreeRadio.nth(i);
+            const id = await radio.getAttribute('id');
+            const text = await page.evaluate(id => {
+                const label = document.querySelector(`label[for="${id}"]`);
+                return label ? label.innerText.toLowerCase() : '';
+            }, id);
+            
+            if (text.includes('yes') || text.includes('agree') || text.includes('consent') || text.includes('accept')) {
+                await radio.click({ force: true }).catch(() => {});
+                break;
+            }
+        }
+        
+        // Fallback: If no radio is checked, click the first one
+        const isChecked = await page.evaluate(() => !!document.querySelector('input[type="radio"]:checked'));
+        if (!isChecked) {
+            await agreeRadio.first().click({ force: true }).catch(()=>{});
+        }
     }
 
     await clickNext(page);

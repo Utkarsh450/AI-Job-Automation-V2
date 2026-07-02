@@ -71,8 +71,48 @@ const createApplication = async (req, res) => {
     }
 };
 
-module.exports = {
-    getUserApplications,
-    createApplication
+const retryApplication = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Find the application
+        const application = await prisma.application.findFirst({
+            where: { id, userId: req.user.id },
+            include: { job: true }
+        });
+
+        if (!application) {
+            return res.status(404).json({ error: 'Application not found' });
+        }
+
+        if (application.status !== 'FAILED') {
+            return res.status(400).json({ error: 'Only failed applications can be retried' });
+        }
+
+        // Update status back to QUEUED
+        const updatedApp = await prisma.application.update({
+            where: { id },
+            data: { status: 'QUEUED' }
+        });
+
+        // Trigger the pipeline again
+        await inngest.send({
+            name: 'app/application.tailor',
+            data: {
+                applicationId: application.id
+            }
+        });
+
+        logger.info(`User ${req.user.id} retried application ${id}`);
+        res.status(200).json({ application: updatedApp });
+    } catch (error) {
+        logger.error(`Error retrying application ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: 'Failed to retry application' });
+    }
 };
 
+module.exports = {
+    getUserApplications,
+    createApplication,
+    retryApplication
+};

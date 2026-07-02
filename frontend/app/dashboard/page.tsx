@@ -139,6 +139,31 @@ export default function DashboardPage() {
     }
   };
 
+  const [retryingApp, setRetryingApp] = useState<string | null>(null);
+  
+  const handleRetry = async (applicationId: string) => {
+    if (retryingApp === applicationId) return;
+    setRetryingApp(applicationId);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/applications/${applicationId}/retry`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['applications'] });
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to retry');
+      }
+    } catch (err) {
+      console.error('Failed to retry:', err);
+    } finally {
+      setRetryingApp(null);
+    }
+  };
+
   if (isLoading || !user) {
     return <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#1a1a1a]"><Loader2 className="w-8 h-8 animate-spin text-slate-500" /></div>;
   }
@@ -403,6 +428,17 @@ export default function DashboardPage() {
                                 ) : app.status === 'QUEUED' || app.status === 'READY_TO_APPLY' || app.status === 'APPLYING' ? (
                                   <button disabled className="px-3 py-1.5 border border-transparent bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center min-w-[80px] opacity-70">
                                     <Loader2 className="w-3 h-3 animate-spin mr-1" /> Processing
+                                  </button>
+                                ) : app.status === 'FAILED' ? (
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRetry(app.id);
+                                    }}
+                                    disabled={retryingApp === app.id}
+                                    className="px-3 py-1.5 border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center min-w-[80px]"
+                                  >
+                                    {retryingApp === app.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Retry'}
                                   </button>
                                 ) : (
                                   <span className="text-slate-400 dark:text-slate-500 text-xs font-medium">-</span>
