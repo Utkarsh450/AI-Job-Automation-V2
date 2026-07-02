@@ -30,40 +30,67 @@ const fillMyInformation = async (page, userInfo) => {
     await page.waitForTimeout(2000);
 
     // 1. How did you hear about us?
-    const sourceDropdown = page.locator('[data-automation-id="sourceDropdown"], button:has-text("Select"), [role="combobox"]').first();
-    if (await sourceDropdown.isVisible({ timeout: 2000 }).catch(() => false)) {
+    try {
         logger.info('Filling How Did You Hear About Us...');
-        await sourceDropdown.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(1000);
-        
-        // Workday dropdowns use promptOption. Click the first one.
-        const firstOption = page.locator('[data-automation-id="promptOption"]').first();
-        if (await firstOption.isVisible().catch(() => false)) {
-            await firstOption.click({ force: true });
-            await page.waitForTimeout(500);
-            // If it was a folder (like "Social Media"), click the first item inside it
-            if (await firstOption.isVisible().catch(() => false)) {
-                await firstOption.click({ force: true }).catch(() => {});
+        // Find the exact combobox explicitly linked to the label
+        let sourceDropdown = page.getByLabel('How Did You Hear About Us', { exact: false }).first();
+        if (!(await sourceDropdown.isVisible().catch(() => false))) {
+            const hearLabel = page.locator('text=/How Did You Hear About Us/i').first();
+            if (await hearLabel.isVisible().catch(() => false)) {
+                const hearContainer = hearLabel.locator('xpath=ancestor::div[contains(@class, "formField") or contains(@data-automation-id, "formField") or @role="group"]').first();
+                sourceDropdown = hearContainer.locator('button, [role="combobox"]').first();
             }
-        } else {
-            await page.keyboard.press('ArrowDown');
-            await page.keyboard.press('Enter');
         }
-        await page.waitForTimeout(500);
+
+        if (await sourceDropdown.isVisible().catch(() => false)) {
+            await sourceDropdown.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(1000);
+            
+            // Try to find search box first
+            const searchBox = page.locator('input[data-automation-id="searchBox"]').first();
+            if (await searchBox.isVisible().catch(()=>false)) {
+                await searchBox.fill('LinkedIn');
+                await page.waitForTimeout(1000);
+            }
+            
+            // Try to explicitly click the LinkedIn option if visible
+            const linkedInOpt = page.locator('[role="treeitem"]:has-text("LinkedIn"), [role="option"]:has-text("LinkedIn"), [data-automation-id="promptOption"]:has-text("LinkedIn")').first();
+            if (await linkedInOpt.isVisible().catch(()=>false)) {
+                await linkedInOpt.click({ force: true });
+            } else {
+                // If nested under Job Board, click Job Board first
+                const jobBoard = page.locator('[role="treeitem"]:has-text("Job Board"), [role="option"]:has-text("Job Board"), [data-automation-id="promptOption"]:has-text("Job Board")').first();
+                if (await jobBoard.isVisible().catch(()=>false)) {
+                    await jobBoard.click({ force: true });
+                    await page.waitForTimeout(1000);
+                    const li2 = page.locator('[role="treeitem"]:has-text("LinkedIn"), [role="option"]:has-text("LinkedIn"), [data-automation-id="promptOption"]:has-text("LinkedIn")').first();
+                    if (await li2.isVisible().catch(()=>false)) await li2.click({ force: true });
+                }
+            }
+            
+            // Fallback keyboard Enter just in case typing filtered it
+            await page.keyboard.press('Enter');
+            await page.waitForTimeout(500);
+        }
+    } catch (e) {
+        logger.error('Failed How did you hear: ' + e.message);
     }
     
     // 2. Previously worked for company? (Radio button NO)
-    const noRadio = page.locator('[data-automation-id="previouslyEmployed-no"], input[type="radio"][value="No"]').first();
-    if (await noRadio.isVisible().catch(() => false)) {
+    try {
         logger.info('Filling Previously Employed...');
-        await noRadio.click({ force: true }).catch(() => {});
-    } else {
-        const prevEmployedLabel = page.locator('label:has-text("previously worked"), label:has-text("previously employed")');
-        if (await prevEmployedLabel.isVisible().catch(() => false)) {
-            logger.info('Filling Previously Employed (Fallback)...');
-            const fallbackRadio = prevEmployedLabel.locator('..').locator('label:has-text("No"), label:has-text("NO")').first();
-            await fallbackRadio.click({ force: true }).catch(() => {});
+        // Just click the first "No" on the page. Workday My Info only has one Yes/No.
+        const noText = page.locator('label:text-is("No"), label:text-is("NO"), text-is="No"').first();
+        if (await noText.isVisible().catch(() => false)) {
+            await noText.click({ force: true });
+        } else {
+            const noRadio = page.locator('[data-automation-id="previouslyEmployed-no"], input[type="radio"]').nth(1);
+            if (await noRadio.isVisible().catch(() => false)) {
+                await noRadio.click({ force: true });
+            }
         }
+    } catch (e) {
+        logger.error('Failed Prev Employed: ' + e.message);
     }
 
     // 3. Legal Name Fallbacks
@@ -76,40 +103,81 @@ const fillMyInformation = async (page, userInfo) => {
         await familyName.fill(userInfo.lastName || 'Name');
     }
 
-    // 4. Address Fallbacks (if parsed empty)
+    // 4. Address Fallbacks
     const addressLine = page.getByLabel('Address Line 1', { exact: false }).first();
     if (await addressLine.isVisible().catch(() => false) && (await addressLine.inputValue().catch(()=>'')) === '') {
-        await addressLine.fill('123 Tech Lane');
+        await addressLine.fill(userInfo.location || '123 Main St');
     }
     const city = page.getByLabel('City', { exact: false }).first();
     if (await city.isVisible().catch(() => false) && (await city.inputValue().catch(()=>'')) === '') {
-        await city.fill('New Delhi');
+        const cityStr = (userInfo.location || 'New Delhi').split(',')[0];
+        await city.fill(cityStr.trim());
     }
     const postal = page.getByLabel('Postal Code', { exact: false }).first();
     if (await postal.isVisible().catch(() => false) && (await postal.inputValue().catch(()=>'')) === '') {
         await postal.fill('110001');
+        await page.waitForTimeout(1000); // Wait for State auto-fill to trigger
+    }
+    
+    // State Fallback (sometimes required)
+    const stateLabel = page.locator('label:text-is("State"), label:text-is("Province")').first();
+    if (await stateLabel.isVisible().catch(() => false)) {
+        const stateInput = page.getByLabel('State', { exact: false }).first();
+        if (await stateInput.isVisible().catch(() => false) && (await stateInput.inputValue().catch(()=>'')) === '') {
+            const stateContainer = stateLabel.locator('xpath=ancestor::div[contains(@class, "formField") or contains(@data-automation-id, "formField")]').first();
+            const stateDropdown = stateContainer.locator('button, [role="combobox"]').first();
+            if (await stateDropdown.isVisible().catch(() => false)) {
+                await stateDropdown.click({ force: true });
+                await page.waitForTimeout(500);
+                const firstState = page.locator('[role="option"], [role="treeitem"]').first();
+                if (await firstState.isVisible().catch(() => false)) {
+                    await firstState.click({ force: true });
+                }
+            }
+        }
     }
 
     // 5. Phone Fallbacks (Device Type and Number)
-    const phoneTypeLabel = page.locator('label:has-text("Phone Device Type")');
+    const phoneTypeLabel = page.locator('text=/Phone Device Type/i').first();
     if (await phoneTypeLabel.isVisible().catch(() => false)) {
-        // Dropdowns don't always work with getByLabel if they are custom divs. We try to click the combobox nearby.
-        const phoneDropdown = page.locator('[data-automation-id="phoneDeviceDropdown"], [data-automation-id="deviceType"]').first();
+        const phoneContainer = phoneTypeLabel.locator('xpath=ancestor::div[contains(@class, "formField") or contains(@data-automation-id, "formField")]').first();
+        let phoneDropdown = phoneContainer.locator('button, [role="combobox"]').first();
+        
+        // Fallback if ancestor logic fails
+        if (!(await phoneDropdown.isVisible().catch(()=>false))) {
+            phoneDropdown = page.locator('[data-automation-id="phoneDeviceDropdown"], [data-automation-id="deviceType"]').first();
+        }
+
         if (await phoneDropdown.isVisible().catch(() => false)) {
             await phoneDropdown.click({ force: true }).catch(() => {});
-        } else {
-            const fallbackDropdown = phoneTypeLabel.locator('..').locator('button, [role="combobox"]').first();
-            await fallbackDropdown.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(1000);
+            
+            // Find and click 'Mobile' or 'Cellular' explicitly
+            const mobileOpt = page.locator('[role="option"]:has-text("Mobile"), [role="treeitem"]:has-text("Mobile"), [role="option"]:has-text("Cellular"), [role="treeitem"]:has-text("Cellular")').first();
+            if (await mobileOpt.isVisible().catch(() => false)) {
+                await mobileOpt.click({ force: true });
+            } else {
+                // Click the last option to ensure it avoids "Select One"
+                const lastOpt = page.locator('[role="option"], [role="treeitem"]').last();
+                if (await lastOpt.isVisible().catch(() => false)) {
+                    await lastOpt.click({ force: true });
+                } else {
+                    await page.keyboard.press('ArrowDown');
+                    await page.keyboard.press('ArrowDown');
+                    await page.keyboard.press('ArrowDown');
+                    await page.keyboard.press('Enter');
+                }
+            }
         }
-        await page.waitForTimeout(1000);
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('ArrowDown'); // Second option is usually Mobile
-        await page.keyboard.press('Enter');
     }
     
     const phoneInput = page.getByLabel('Phone Number', { exact: false }).first();
     if (await phoneInput.isVisible().catch(() => false) && (await phoneInput.inputValue().catch(()=>'')) === '') {
-        await phoneInput.fill(userInfo.phone || '9876543210');
+        let cleanPhone = (userInfo.phone || '9876543210').replace(/\D/g, '');
+        if (cleanPhone.length > 10) {
+            cleanPhone = cleanPhone.slice(-10);
+        }
+        await phoneInput.fill(cleanPhone);
     }
 
     await clickNext(page);
