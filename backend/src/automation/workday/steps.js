@@ -664,71 +664,118 @@ const fillApplicationQuestions = async (page, userInfo, tailoredResume) => {
     }
 
     // 2. Radio Buttons, Checkboxes, and Dropdowns (Sponsorship, Authorized to work, etc)
-    const fieldSets = await page.$$('[data-automation-id="formField"]');
-    for (const field of fieldSets) {
-        const labelText = await field.innerText().then(t => t.split('\n')[0].toLowerCase());
-        
-        let choice = 'Yes';
-        // Sponsorship / Visa
-        if (labelText.includes('sponsorship') || labelText.includes('visa') || labelText.includes('employer support') || labelText.includes('work permit')) {
-            choice = userInfo.preferences?.requiresVisaSponsorship ? 'Yes' : 'No';
-        } 
-        // Authorized to work
-        else if (labelText.includes('authorized') || labelText.includes('legally')) {
+    const questions = [
+        { keywords: ['authorized', 'legally'], choice: userInfo.preferences?.authorizedToWork !== false ? 'Yes' : 'No' },
+        { keywords: ['sponsorship', 'visa', 'employer support', 'work permit'], choice: userInfo.preferences?.requiresVisaSponsorship ? 'Yes' : 'No' },
+        { keywords: ['relocate'], choice: userInfo.preferences?.willingToRelocate ? 'Yes' : 'No' },
+        { keywords: ['previously employed', 'former employee'], choice: 'No' },
+        { keywords: ['government'], choice: 'No' },
+        { keywords: ['non-compete', 'noncompete'], choice: 'No' }
+    ];
+
+    // Find all "Select One" Dropdowns
+    const selectButtons = await page.locator('button').filter({ hasText: 'Select One' }).all();
+    for (const btn of selectButtons) {
+        if (!(await btn.isVisible().catch(()=>false))) continue;
+
+        // Walk up the DOM to find the question text (it usually contains '?' or '*')
+        const questionText = await btn.evaluate(el => {
+            let curr = el.parentElement;
+            while (curr && curr.tagName !== 'BODY') {
+                const txt = curr.innerText || '';
+                if (txt.includes('?') || txt.includes('*') || txt.toLowerCase().includes('authorized') || txt.toLowerCase().includes('sponsor')) {
+                    return txt;
+                }
+                curr = curr.parentElement;
+            }
+            return '';
+        }).then(t => t.toLowerCase());
+
+        if (!questionText) continue;
+
+        let choice = 'Yes'; // Default fallback
+        if (questionText.includes('authorized') || questionText.includes('legally')) {
             choice = userInfo.preferences?.authorizedToWork !== false ? 'Yes' : 'No';
-        } 
-        // Relocation
-        else if (labelText.includes('relocate')) {
+        } else if (questionText.includes('sponsorship') || questionText.includes('visa') || questionText.includes('employer support') || questionText.includes('work permit')) {
+            choice = userInfo.preferences?.requiresVisaSponsorship ? 'Yes' : 'No';
+        } else if (questionText.includes('relocate')) {
             choice = userInfo.preferences?.willingToRelocate ? 'Yes' : 'No';
-        }
-        // Former Employee
-        else if (labelText.includes('previously employed') || labelText.includes('former employee')) {
+        } else if (questionText.includes('previously employed') || questionText.includes('former employee')) {
+            choice = 'No';
+        } else if (questionText.includes('government')) {
+            choice = 'No';
+        } else if (questionText.includes('non-compete') || questionText.includes('noncompete')) {
             choice = 'No';
         }
 
-        // Try Radio Buttons first
-        const radios = await field.$$('input[type="radio"]');
-        if (radios.length > 0) {
-            for (const radio of radios) {
-                const radioId = await radio.getAttribute('id');
-                const radioLabel = await page.evaluate(id => {
-                    const l = document.querySelector(`label[for="${id}"]`);
-                    return l ? l.innerText : '';
-                }, radioId);
+        logger.info(`Answering Dropdown: "${questionText.split('\n')[0]}" -> ${choice}`);
+        
+        await btn.click({ force: true }).catch(()=>{});
+        await page.waitForTimeout(500);
+        
+        const choiceOpt = page.locator(`[role="option"]:has-text("${choice}"), [role="listbox"] li:has-text("${choice}")`).first();
+        if (await choiceOpt.isVisible().catch(()=>false)) {
+            await choiceOpt.click({ force: true }).catch(()=>{});
+            logger.info(`✅ Selected ${choice} via Dropdown`);
+        } else {
+            // Fallback: keyboard navigation
+            await page.keyboard.type(choice, { delay: 100 });
+            await page.waitForTimeout(500);
+            await page.keyboard.press('Enter');
+            logger.info(`✅ Selected ${choice} via Keyboard`);
+        }
+        await page.waitForTimeout(500);
+    }
 
-                if (radioLabel.includes(choice)) {
-                    await radio.click({ force: true });
-                    break;
+    // Find all Radio Button groups (by finding all 'Yes' labels)
+    // Workday radio options are usually inside labels with text 'Yes' or 'No'
+    const yesLabels = await page.locator('label').filter({ hasText: /^Yes$/i }).all();
+    for (const yesLabel of yesLabels) {
+        if (!(await yesLabel.isVisible().catch(()=>false))) continue;
+
+        const questionText = await yesLabel.evaluate(el => {
+            let curr = el.parentElement;
+            while (curr && curr.tagName !== 'BODY') {
+                const txt = curr.innerText || '';
+                if (txt.includes('?') || txt.includes('*') || txt.toLowerCase().includes('authorized') || txt.toLowerCase().includes('sponsor')) {
+                    return txt;
                 }
+                curr = curr.parentElement;
             }
-            continue;
+            return '';
+        }).then(t => t.toLowerCase());
+
+        if (!questionText) continue;
+
+        let choice = 'Yes';
+        if (questionText.includes('authorized') || questionText.includes('legally')) {
+            choice = userInfo.preferences?.authorizedToWork !== false ? 'Yes' : 'No';
+        } else if (questionText.includes('sponsorship') || questionText.includes('visa') || questionText.includes('employer support') || questionText.includes('work permit')) {
+            choice = userInfo.preferences?.requiresVisaSponsorship ? 'Yes' : 'No';
+        } else if (questionText.includes('relocate')) {
+            choice = userInfo.preferences?.willingToRelocate ? 'Yes' : 'No';
+        } else if (questionText.includes('previously employed') || questionText.includes('former employee')) {
+            choice = 'No';
+        } else if (questionText.includes('government')) {
+            choice = 'No';
+        } else if (questionText.includes('non-compete') || questionText.includes('noncompete')) {
+            choice = 'No';
         }
 
-        // Try Comboboxes (Dropdowns)
-        const combobox = await field.$('button, [role="combobox"]');
-        if (combobox) {
-            await combobox.click({ force: true }).catch(()=>{});
-            await page.waitForTimeout(500);
-            
-            const choiceOpt = page.locator(`[role="option"]:has-text("${choice}"), [role="treeitem"]:has-text("${choice}")`).first();
-            if (await choiceOpt.isVisible().catch(()=>false)) {
-                await choiceOpt.click({ force: true });
-            } else {
-                await page.keyboard.press('ArrowDown');
-                await page.keyboard.press('ArrowDown');
-                await page.keyboard.press('Enter');
-            }
-            await page.waitForTimeout(500);
-            continue;
-        }
+        logger.info(`Answering Radio: "${questionText.split('\n')[0]}" -> ${choice}`);
 
-        // Try Checkboxes
-        const checkboxes = await field.$$('input[type="checkbox"]');
-        if (checkboxes.length > 0) {
-            for (const checkbox of checkboxes) {
-                await checkbox.check({ force: true }).catch(()=>{});
-            }
+        // Click the Yes or No label
+        const targetLabel = page.locator('label').filter({ hasText: new RegExp(`^${choice}$`, 'i') }).first();
+        // Since we are iterating over 'Yes' labels, we need to scope the targetLabel to the same group.
+        // Easiest way is to go up a few levels and find it
+        const container = yesLabel.locator('xpath=ancestor::div[contains(@class, "css-")][.//label[contains(string(), "No")]]').first();
+        const optionToClick = container.locator('label').filter({ hasText: new RegExp(`^${choice}$`, 'i') }).first();
+        
+        if (await optionToClick.isVisible().catch(()=>false)) {
+            await optionToClick.click({ force: true }).catch(()=>{});
+            logger.info(`✅ Selected ${choice} via Radio`);
         }
+        await page.waitForTimeout(500);
     }
 
     await clickNext(page);
@@ -738,34 +785,48 @@ const fillVoluntaryDisclosures = async (page, userInfo) => {
     logger.info('Handling "Voluntary Disclosures" step...');
     await page.waitForTimeout(2000);
 
-    // Try finding all form fields first
-    const formFields = await page.$$('[data-automation-id="formField"], .formField');
-    for (const field of formFields) {
-        const labelText = await page.evaluate(el => el.innerText.split('\n')[0].toLowerCase(), field);
-        
-        let targetValue = 'Decline';
-        let isDisclosure = false;
-        if (labelText.includes('gender') || labelText.includes('sex')) { targetValue = userInfo.demographics?.gender || 'Decline'; isDisclosure = true; }
-        else if (labelText.includes('hispanic') || labelText.includes('race') || labelText.includes('ethnicity')) { targetValue = userInfo.demographics?.race || 'Decline'; isDisclosure = true; }
-        else if (labelText.includes('veteran')) { targetValue = userInfo.demographics?.veteranStatus || 'Decline'; isDisclosure = true; }
-        else if (labelText.includes('disability')) { targetValue = userInfo.demographics?.disabilityStatus || 'Decline'; isDisclosure = true; }
+    // Find all "Select One" Dropdowns
+    const selectButtons = await page.locator('button').filter({ hasText: 'Select One' }).all();
+    for (const btn of selectButtons) {
+        if (!(await btn.isVisible().catch(()=>false))) continue;
 
-        if (isDisclosure) {
-            const mappedValue = mapWorkdayDemographics(labelText, targetValue);
-            if (mappedValue) {
-                // Find the dropdown button/combobox inside this field
-                const dropdown = await field.$('button, [role="combobox"], [data-automation-id="selectWidget"]');
-                if (dropdown) {
-                    await dropdown.click().catch(()=>{});
-                    await page.waitForTimeout(1000);
-                    // Type the mapped value to filter Workday's select dropdown
-                    await page.keyboard.type(mappedValue.substring(0, 5), { delay: 100 }); 
-                    await page.waitForTimeout(500);
-                    await page.keyboard.press('Enter');
-                    await page.waitForTimeout(500);
+        // Walk up the DOM to find the question text
+        const questionText = await btn.evaluate(el => {
+            let curr = el.parentElement;
+            while (curr && curr.tagName !== 'BODY') {
+                const txt = curr.innerText || '';
+                if (txt.includes('?') || txt.includes('*') || txt.toLowerCase().includes('gender') || txt.toLowerCase().includes('race') || txt.toLowerCase().includes('veteran') || txt.toLowerCase().includes('disability') || txt.toLowerCase().includes('ethnicity')) {
+                    return txt;
                 }
+                curr = curr.parentElement;
             }
+            return '';
+        }).then(t => t.toLowerCase());
+
+        if (!questionText) continue;
+
+        let targetValue = 'Decline';
+        if (questionText.includes('gender') || questionText.includes('sex')) { 
+            targetValue = userInfo.demographics?.gender || 'Decline'; 
+        } else if (questionText.includes('hispanic') || questionText.includes('race') || questionText.includes('ethnicity')) { 
+            targetValue = userInfo.demographics?.race || 'Decline'; 
+        } else if (questionText.includes('veteran')) { 
+            targetValue = userInfo.demographics?.veteranStatus || 'Decline'; 
+        } else if (questionText.includes('disability')) { 
+            targetValue = userInfo.demographics?.disabilityStatus || 'Decline'; 
         }
+
+        const mappedValue = mapWorkdayDemographics(questionText, targetValue) || 'Decline';
+        logger.info(`Answering Voluntary Disclosure: "${questionText.split('\\n')[0]}" -> ${mappedValue}`);
+
+        await btn.click({ force: true }).catch(()=>{});
+        await page.waitForTimeout(500);
+        
+        // Typing works amazingly well for these comboboxes
+        await page.keyboard.type(mappedValue.substring(0, 5), { delay: 100 }); 
+        await page.waitForTimeout(500);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(500);
     }
     
     // Sometimes there is a checkbox or radio button for terms/consent
